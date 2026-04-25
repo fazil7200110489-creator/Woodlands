@@ -1,13 +1,15 @@
 import mongoose from "mongoose";
 
-if (!process.env.MONGODB_URI) {
-  throw new Error(
-    "MONGODB_URI environment variable is not set. " +
-    "Add it to your .env.local file for local dev, or to your Vercel project settings for production."
-  );
-}
-
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  (process.env.NODE_ENV === "production"
+    ? (() => {
+        throw new Error(
+          "MONGODB_URI environment variable is not set. " +
+          "Add it to your Vercel project settings → Environment Variables."
+        );
+      })()
+    : "mongodb://127.0.0.1:27017/woodlands") as string;
 
 declare global {
   var mongooseCache: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null } | undefined;
