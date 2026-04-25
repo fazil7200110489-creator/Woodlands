@@ -201,14 +201,14 @@ export default function OrderingClient() {
 
       <section ref={categoriesRef} id="categories" className="relative z-10 mx-auto mb-8 mt-2 flex w-full max-w-6xl gap-2 overflow-x-auto px-4 pb-2 md:px-10">
         {categories.map((c) => (
-          <button key={c} className="shrink-0 border border-white/10 px-5 py-2 text-[11px] uppercase tracking-[0.15em] text-oryzo-muted transition hover:text-oryzo-warm">
+          <a key={c} href="#menu" className="shrink-0 border border-white/10 px-5 py-2 text-[11px] uppercase tracking-[0.15em] text-oryzo-muted transition hover:text-oryzo-warm">
             {c}
-          </button>
+          </a>
         ))}
       </section>
 
       <section ref={featuredRef} className="min-h-[500px]">
-        {featuredSeen ? <HorizontalScroll items={menu} /> : <FeaturedSkeleton />}
+        {featuredSeen ? <HorizontalScroll items={menu} cart={cart} onAdjust={adjust} /> : <FeaturedSkeleton />}
       </section>
 
       <section ref={menuHeaderRef} className="mx-auto w-full max-w-6xl px-4 md:px-10">

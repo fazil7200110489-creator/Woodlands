@@ -1,40 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import gsap from "gsap";
+import { useEffect, useState } from "react";
+import { m, useMotionValue, useSpring } from "framer-motion";
 
 export default function Cursor() {
-  const dotRef = useRef<HTMLDivElement>(null);
-  const ringRef = useRef<HTMLDivElement>(null);
   const [label, setLabel] = useState("");
+  const cursorX = useMotionValue(-100);
+  const cursorY = useMotionValue(-100);
+
+  const springConfig = { damping: 25, stiffness: 400, mass: 0.5 };
+  const ringX = useSpring(cursorX, springConfig);
+  const ringY = useSpring(cursorY, springConfig);
+
+  const dotConfig = { damping: 20, stiffness: 800, mass: 0.1 };
+  const dotX = useSpring(cursorX, dotConfig);
+  const dotY = useSpring(cursorY, dotConfig);
 
   useEffect(() => {
-    const dot = dotRef.current;
-    const ring = ringRef.current;
-    if (!dot || !ring) return;
-
-    const dotX = gsap.quickTo(dot, "x", { duration: 0.1, ease: "power2.out" });
-    const dotY = gsap.quickTo(dot, "y", { duration: 0.1, ease: "power2.out" });
-    const ringX = gsap.quickTo(ring, "x", { duration: 0.5, ease: "power3.out" });
-    const ringY = gsap.quickTo(ring, "y", { duration: 0.5, ease: "power3.out" });
-
     const onMove = (e: MouseEvent) => {
-      dotX(e.clientX - 4);
-      dotY(e.clientY - 4);
-      ringX(e.clientX - 20);
-      ringY(e.clientY - 20);
+      cursorX.set(e.clientX);
+      cursorY.set(e.clientY);
     };
 
-    const activate = (text?: string) => {
-      setLabel(text ?? "");
-      gsap.to(ring, { width: 60, height: 60, duration: 0.25, ease: "power3.out" });
-      ring.style.mixBlendMode = "difference";
-    };
-    const deactivate = () => {
-      setLabel("");
-      gsap.to(ring, { width: 40, height: 40, duration: 0.3, ease: "power3.out" });
-      ring.style.mixBlendMode = "normal";
-    };
+    const activate = (text?: string) => setLabel(text ?? "");
+    const deactivate = () => setLabel("");
 
     const bindHover = () => {
       const buttonTargets = document.querySelectorAll("button, a, [data-cursor='button']");
@@ -65,14 +54,27 @@ export default function Cursor() {
       cleanupHover();
       window.removeEventListener("mousemove", onMove);
     };
-  }, []);
+  }, [cursorX, cursorY]);
+
+  const active = label.length > 0;
 
   return (
     <>
-      <div ref={dotRef} className="pointer-events-none fixed left-0 top-0 z-[10000] h-2 w-2 rounded-full bg-white" />
-      <div ref={ringRef} className="pointer-events-none fixed left-0 top-0 z-[9999] flex h-10 w-10 items-center justify-center rounded-full border border-white text-[9px] tracking-[0.14em] text-white">
+      <m.div
+        style={{ x: dotX, y: dotY, translateX: "-50%", translateY: "-50%" }}
+        className="pointer-events-none fixed left-0 top-0 z-[10000] hidden h-2 w-2 rounded-full bg-white will-change-transform md:block"
+      />
+      <m.div
+        style={{ x: ringX, y: ringY, translateX: "-50%", translateY: "-50%" }}
+        animate={{
+          width: active ? 60 : 40,
+          height: active ? 60 : 40,
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        className="pointer-events-none fixed left-0 top-0 z-[9999] hidden items-center justify-center rounded-full border border-white text-[9px] tracking-[0.14em] text-white mix-blend-difference will-change-transform md:flex"
+      >
         {label}
-      </div>
+      </m.div>
     </>
   );
 }
