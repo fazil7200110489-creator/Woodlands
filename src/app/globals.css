@@ -1,0 +1,148 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg-primary: #0a0a0a;
+  --bg-card: #111111;
+  --bg-elevated: #1a1a1a;
+  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f0ede6;
+  --text-secondary: #8a8680;
+  --text-accent: #c9b99a;
+  --highlight: #d4a853;
+  --danger: #e05c3a;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-dm-mono), monospace;
+  cursor: none;
+  overflow-x: hidden;
+  background-image: radial-gradient(circle at 12% 8%, rgba(212, 168, 83, 0.08), transparent 28%),
+    radial-gradient(circle at 85% 12%, rgba(201, 185, 154, 0.08), transparent 25%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: #d4a853;
+  color: #0a0a0a;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.glass {
+  @apply border backdrop-blur-xl;
+  border-color: var(--border);
+  background: rgba(10, 10, 10, 0.72);
+}
+
+.glass-soft {
+  @apply border backdrop-blur-md;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, #f0ede6 10%, #d9c9ab 50%, #d4a853 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.font-display {
+  font-family: var(--font-dm-serif), serif;
+}
+
+.font-serif {
+  font-family: var(--font-fraunces), serif;
+}
+
+.section-label {
+  color: var(--text-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.input-editorial {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  color: var(--text-primary);
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 13px;
+}
+
+.input-editorial::placeholder {
+  color: var(--text-secondary);
+}
+
+.input-editorial:focus {
+  border-color: rgba(212, 168, 83, 0.5);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(212, 168, 83, 0.08);
+}
+
+.skeleton-dark {
+  background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
