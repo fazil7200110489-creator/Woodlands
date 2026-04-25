@@ -3,7 +3,10 @@ import cron from "node-cron";
 let started = false;
 
 export function startCronJobs() {
-  if (started || process.env.NODE_ENV === "test") return;
+  // node-cron requires a persistent long-running Node process.
+  // Vercel runs serverless functions (ephemeral), so cron cannot work there.
+  // We only start cron locally in development.
+  if (started || process.env.NODE_ENV !== "development") return;
   started = true;
 
   cron.schedule("30 23 * * *", async () => {

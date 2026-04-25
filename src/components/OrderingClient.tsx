@@ -25,6 +25,7 @@ type Cart = Record<string, { item: MenuItem; qty: number }>;
 
 export default function OrderingClient() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [menuError, setMenuError] = useState<string | null>(null);
   const [cart, setCart] = useState<Cart>({});
   const [drawer, setDrawer] = useState(false);
   const [pickupTime, setPickupTime] = useState("");
@@ -52,8 +53,23 @@ export default function OrderingClient() {
   const { count: countRating, ref: countRatingRef } = useCountUp(49);
 
   useEffect(() => {
-    fetch("/api/menu").then((r) => r.json()).then(setMenu);
-    fetch("/api/settings").then((r) => r.json()).then(setSettings);
+    fetch("/api/menu")
+      .then((r) => {
+        if (!r.ok) throw new Error(`Menu API returned ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) setMenu(data);
+        else throw new Error(data.error ?? "Unexpected menu response");
+      })
+      .catch((err) => {
+        console.error("Failed to load menu:", err);
+        setMenuError("Menu unavailable. Please try again later.");
+      });
+    fetch("/api/settings")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data && !data.error) setSettings(data); })
+      .catch(() => { /* use defaults if settings fail */ });
     setPickupTime(generatePickupSlots()[0] ?? "");
   }, []);
 
@@ -215,7 +231,14 @@ export default function OrderingClient() {
         <div className="mb-4 border-l-2 border-oryzo-gold pl-3 section-label">Menu Showcase</div>
       </section>
       <section ref={menuRef} className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-16 md:px-10">
-        {menuSeen ? (
+        {menuError ? (
+          <div className="border border-oryzo-red/40 bg-oryzo-red/10 px-6 py-8 text-center">
+            <p className="text-sm text-oryzo-red">{menuError}</p>
+            <button onClick={() => window.location.reload()} className="mt-4 border border-oryzo-red/40 px-4 py-2 text-[11px] uppercase tracking-[0.15em] text-oryzo-red hover:bg-oryzo-red/10 transition">
+              Retry
+            </button>
+          </div>
+        ) : menuSeen ? (
           <section ref={menuContainerRef} id="menu" className="space-y-4">
             {menu.map((item) => {
               const qty = cart[item._id || item.name]?.qty ?? 0;
