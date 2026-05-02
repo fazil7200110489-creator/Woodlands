@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "plus.unsplash.com" },
+      { protocol: "https", hostname: "share.google" },
+      { protocol: "https", hostname: "media-cdn.tripadvisor.com" },
     ],
   },
 };

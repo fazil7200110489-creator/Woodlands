@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
+import { initialMenu } from "@/lib/menuData";
 import { MenuItemModel } from "@/lib/models";
 import { ensureSeeded } from "@/lib/seed";
 
@@ -10,7 +11,7 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[GET /api/menu]", err);
-    return NextResponse.json({ error: "Failed to load menu" }, { status: 500 });
+    return NextResponse.json(initialMenu);
   }
 }
 

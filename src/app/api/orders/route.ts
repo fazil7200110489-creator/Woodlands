@@ -4,16 +4,22 @@ import { OrderModel } from "@/lib/models";
 import { buildOrderMessage, buildWhatsAppRedirect } from "@/lib/whatsapp";
 
 export async function POST(req: Request) {
-  await connectDB();
   const body = await req.json();
-  const order = await OrderModel.create({ ...body, status: "Pending" });
   const message = buildOrderMessage({
     items: body.items,
     pickupTime: body.pickupTime,
     totalAmount: body.totalAmount,
   });
+  let orderId: string | null = null;
+  try {
+    await connectDB();
+    const order = await OrderModel.create({ ...body, status: "Pending" });
+    orderId = String(order._id);
+  } catch (err) {
+    console.error("[POST /api/orders] DB skipped", err);
+  }
   return NextResponse.json({
-    orderId: order._id,
+    orderId,
     redirectUrl: buildWhatsAppRedirect(message),
   });
 }
