@@ -1,0 +1,246 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg-primary: #FBF8F3;
+  --bg-secondary: #F3EDE4;
+  --bg-card: #FFFFFF;
+  --border: rgba(191, 151, 106, 0.20);
+  --border-strong: rgba(191, 151, 106, 0.40);
+  --text-primary: #1D0F07;
+  --text-secondary: #5C4A38;
+  --text-muted: #8B7355;
+  --text-accent: #9B7340;
+  --gold: #BF976A;
+  --gold-light: rgba(191, 151, 106, 0.12);
+  --danger: #d86b42;
+}
+
+/* ─── Reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── Body ───────────────────────────────────────────────────────────────── */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  /* Fraunces as warm editorial body font */
+  font-family: var(--font-fraunces), 'Georgia', serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(191, 151, 106, 0.07), transparent 28%),
+    radial-gradient(circle at 85% 6%, rgba(212, 184, 150, 0.09), transparent 30%),
+    linear-gradient(180deg, #FBF8F3 0%, #F7F3EC 100%);
+  background-attachment: fixed;
+}
+
+/* Custom cursor (fine pointer only) */
+@media (pointer: fine) {
+  body { cursor: none; }
+}
+
+/* ─── Selection ──────────────────────────────────────────────────────────── */
+::selection {
+  background: #bf976a;
+  color: #1d0f07;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { display: none; }
+
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Film grain overlay ─────────────────────────────────────────────────── */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-dm-serif), 'Georgia', serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.font-serif {
+  font-family: var(--font-fraunces), 'Georgia', serif;
+}
+
+.font-mono-num {
+  font-family: var(--font-dm-mono), 'Courier New', monospace;
+}
+
+/* ─── Glass utilities ────────────────────────────────────────────────────── */
+.glass {
+  @apply border backdrop-blur-xl;
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.glass-soft {
+  @apply border backdrop-blur-md;
+  border-color: rgba(191, 151, 106, 0.10);
+  background: rgba(255, 255, 255, 0.60);
+}
+
+/* ─── Text gradient ──────────────────────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(105deg, #1D0F07 5%, #bf976a 50%, #C4884A 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ─── Section label ──────────────────────────────────────────────────────── */
+.section-label {
+  color: var(--text-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-size: 10px;
+  font-family: var(--font-dm-mono), monospace;
+}
+
+/* ─── Tag pill ───────────────────────────────────────────────────────────── */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.70);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.20em;
+  color: var(--text-accent);
+  font-family: var(--font-dm-mono), monospace;
+  backdrop-filter: blur(8px);
+}
+
+/* ─── Card hover lift ────────────────────────────────────────────────────── */
+.card-lift {
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.10);
+}
+
+/* ─── Input editorial ────────────────────────────────────────────────────── */
+.input-editorial {
+  background: rgba(30, 20, 10, 0.04);
+  border: 1px solid rgba(191, 151, 106, 0.22);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.input-editorial::placeholder {
+  color: rgba(92, 74, 56, 0.45);
+}
+
+.input-editorial:focus {
+  border-color: rgba(191, 151, 106, 0.65);
+  box-shadow: 0 0 0 4px rgba(191, 151, 106, 0.10);
+}
+
+/* ─── Skeleton shimmer ───────────────────────────────────────────────────── */
+.skeleton-dark {
+  background: linear-gradient(90deg, #EDE7DC 25%, #DDD0BC 50%, #EDE7DC 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ─── Section reveal ─────────────────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Divider line ───────────────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border);
+}
+
+/* ─── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(6px); }
+}
+
+.animate-scroll-bounce {
+  animation: scrollBounce 2s ease-in-out infinite;
+}
+
+/* ─── Category tab active ring ───────────────────────────────────────────── */
+.cat-tab-active {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+}
+
+.cat-tab-inactive {
+  border-color: var(--border);
+  color: var(--text-accent);
+  background: transparent;
+}
+
+.cat-tab-inactive:hover {
+  border-color: var(--gold);
+  background: var(--gold-light);
+}
