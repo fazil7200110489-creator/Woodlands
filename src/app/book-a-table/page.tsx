@@ -5,6 +5,9 @@ import { m, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Calendar, Clock, Users, Mail, Phone, User, MessageSquare, GlassWater } from "lucide-react";
 import MagneticButton from "@/components/MagneticButton";
+import { useRazorpay } from "@/hooks/useRazorpay";
+
+const ADVANCE_AMOUNT = 200; // ₹200 advance — configurable via BOOKING_ADVANCE_AMOUNT env (read at build time if needed)
 
 const occasions = [
   "None",
@@ -37,16 +40,80 @@ export default function BookTablePage() {
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<any>(null);
 
+  const { openRazorpay } = useRazorpay();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
     try {
+      /* ── Step 1: Create Razorpay order for ₹200 advance ── */
+      const createRes = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: ADVANCE_AMOUNT,
+          notes: {
+            customerName: formData.customerName,
+            customerPhone: formData.customerPhone,
+            type: "table_booking",
+          },
+        }),
+      });
+      const { orderId: rzpOrderId, amount: rzpAmount, keyId } = await createRes.json();
+      if (!rzpOrderId) throw new Error("Could not initiate payment. Please try again.");
+
+      /* ── Step 2: Open Razorpay popup ── */
+      const paymentResponse = await openRazorpay({
+        key: keyId ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+        amount: rzpAmount,
+        currency: "INR",
+        name: "Woodlands",
+        description: `Table Advance — ${formData.date} at ${formData.timeSlot} · ${formData.guests} guests`,
+        order_id: rzpOrderId,
+        prefill: {
+          name: formData.customerName,
+          contact: formData.customerPhone,
+          email: formData.customerEmail || undefined,
+        },
+        theme: { color: "#BF976A" },
+        config: {
+          display: {
+            blocks: {
+              utib: { name: "Pay via UPI", instruments: [{ method: "upi" }] },
+              other: { name: "Other Methods", instruments: [{ method: "card" }, { method: "netbanking" }] },
+            },
+            sequence: ["block.utib", "block.other"],
+            preferences: { show_default_blocks: false },
+          },
+        },
+      });
+
+      /* ── Step 3: Verify signature server-side ── */
+      const verifyRes = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razorpayOrderId: paymentResponse.razorpay_order_id,
+          razorpayPaymentId: paymentResponse.razorpay_payment_id,
+          razorpaySignature: paymentResponse.razorpay_signature,
+        }),
+      });
+      const { success: verified } = await verifyRes.json();
+      if (!verified) throw new Error("Payment verification failed. Please contact us.");
+
+      /* ── Step 4: Create reservation in MongoDB with payment details ── */
       const res = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          razorpayOrderId: paymentResponse.razorpay_order_id,
+          razorpayPaymentId: paymentResponse.razorpay_payment_id,
+          paymentAmount: ADVANCE_AMOUNT,
+          paymentStatus: "Paid",
+        }),
       });
       const data = await res.json();
 
@@ -61,9 +128,14 @@ export default function BookTablePage() {
         localStorage.setItem("woodlands_reservations", JSON.stringify(history));
       } catch (err) {}
 
-      setSuccessData(data);
+      setSuccessData({ ...data, paymentId: paymentResponse.razorpay_payment_id });
     } catch (err: any) {
-      setError(err.message);
+      const reason = err?.message ?? "Payment did not complete.";
+      if (reason.includes("cancelled")) {
+        setError("Payment was cancelled. Please try again when ready.");
+      } else {
+        setError(reason);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -166,9 +238,27 @@ export default function BookTablePage() {
                 <textarea placeholder="Special Instructions (Dietary requirements, seating preference, etc.)" rows={3} className="w-full resize-none rounded-2xl border border-[#BF976A]/20 bg-white/50 py-4 pl-12 pr-4 font-serif text-[1rem] outline-none transition-all focus:border-[#BF976A] focus:bg-white" value={formData.specialInstructions} onChange={e => setFormData({ ...formData, specialInstructions: e.target.value })} />
               </div>
 
-              <MagneticButton disabled={isSubmitting} className="mx-auto w-full max-w-sm rounded-full bg-[#1D0F07] py-5 font-mono-num text-[11px] uppercase tracking-[0.2em] text-[#FBF8F3] transition-colors hover:bg-[#BF976A] hover:text-[#1D0F07] disabled:opacity-50">
-                {isSubmitting ? "Confirming..." : "Confirm Reservation"}
-              </MagneticButton>
+              {/* Advance payment notice */}
+              <div className="rounded-2xl border border-[#BF976A]/20 bg-[#BF976A]/6 px-5 py-4 flex items-start gap-3">
+                <svg className="mt-0.5 h-5 w-5 shrink-0 text-[#9B7340]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="font-mono-num text-[10px] uppercase tracking-[0.2em] text-[#9B7340] mb-1">Advance Required</p>
+                  <p className="font-serif text-sm text-[#5C4A38] leading-[1.6]">
+                    A refundable advance of <strong>₹{ADVANCE_AMOUNT}</strong> is required to confirm your booking. This is adjusted against your bill on arrival.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-2">
+                <MagneticButton disabled={isSubmitting} className="mx-auto w-full max-w-sm rounded-full bg-[#1D0F07] py-5 font-mono-num text-[11px] uppercase tracking-[0.2em] text-[#FBF8F3] transition-colors hover:bg-[#BF976A] hover:text-[#1D0F07] disabled:opacity-50">
+                  {isSubmitting ? "Processing Payment…" : `Pay ₹${ADVANCE_AMOUNT} & Reserve Table`}
+                </MagneticButton>
+                <p className="font-mono-num text-[9px] uppercase tracking-[0.18em] text-[#9B7340]/55">
+                  🔒 Secured by Razorpay · Test Mode
+                </p>
+              </div>
             </form>
           </m.div>
         </div>
@@ -191,9 +281,9 @@ export default function BookTablePage() {
                   <p className="font-mono-num text-[10px] uppercase tracking-widest text-[#9B7340]">Reference ID</p>
                   <p className="font-mono-num text-xl text-[#1D0F07]">{successData.referenceId}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <p className="font-mono-num text-[10px] uppercase tracking-widest text-[#9B7340]">Date & Time</p>
+                    <p className="font-mono-num text-[10px] uppercase tracking-widest text-[#9B7340]">Date &amp; Time</p>
                     <p className="font-serif text-sm text-[#1D0F07]">{successData.date} at {successData.timeSlot}</p>
                   </div>
                   <div>
@@ -201,6 +291,13 @@ export default function BookTablePage() {
                     <p className="font-serif text-sm text-[#1D0F07]">{successData.guests} People</p>
                   </div>
                 </div>
+                {successData.paymentId && (
+                  <div className="border-t border-[#BF976A]/10 pt-4">
+                    <p className="font-mono-num text-[10px] uppercase tracking-widest text-[#9B7340] mb-1">Payment ID</p>
+                    <p className="font-mono-num text-xs text-[#5C4A38] break-all">{successData.paymentId}</p>
+                    <p className="mt-1 font-mono-num text-[9px] text-emerald-600">₹{ADVANCE_AMOUNT} advance paid ✓</p>
+                  </div>
+                )}
               </div>
 
               <Link href="/">

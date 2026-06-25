@@ -8,6 +8,7 @@ import { MenuItem } from "@/lib/types";
 import { generatePickupSlots, toCurrency } from "@/lib/pickup";
 import MagneticButton from "@/components/MagneticButton";
 import { Home, Search, ShoppingBag, ClipboardList, CalendarDays } from "lucide-react";
+import { useRazorpay } from "@/hooks/useRazorpay";
 
 const HeroModel = dynamic(() => import("@/components/HeroModel"), {
   ssr: false,
@@ -56,6 +57,7 @@ export default function OrderingClient() {
   const [touchedPhone, setTouchedPhone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [settings, setSettings] = useState({
     shopOpen: true,
     acceptingOrders: true,
@@ -70,6 +72,8 @@ export default function OrderingClient() {
   const [historyDrawer, setHistoryDrawer] = useState(false);
   const [reservationDrawer, setReservationDrawer] = useState(false);
   const [reservationHistory, setReservationHistory] = useState<any[]>([]);
+
+  const { openRazorpay } = useRazorpay();
 
   /* ── Derived ────────────────────────────────────────────────────────── */
   const slots = useMemo(() => generatePickupSlots(), []);
@@ -173,7 +177,57 @@ export default function OrderingClient() {
   const placeOrder = async () => {
     if (!lines.length || !pickupTime || disabled || !isFormValid) return;
     setIsSubmitting(true);
+    setPaymentError(null);
+
     try {
+      /* ── Step 1: Create Razorpay order on server ── */
+      const createRes = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: total,
+          notes: { customerName: name.trim(), customerPhone: phone.trim() },
+        }),
+      });
+      const { orderId: rzpOrderId, amount: rzpAmount, keyId } = await createRes.json();
+      if (!rzpOrderId) throw new Error("Could not create payment order. Try again.");
+
+      /* ── Step 2: Open Razorpay popup ── */
+      const paymentResponse = await openRazorpay({
+        key: keyId ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+        amount: rzpAmount,
+        currency: "INR",
+        name: "Woodlands",
+        description: `Order — ${lines.length} item${lines.length > 1 ? "s" : ""} · ${toCurrency(total)}`,
+        order_id: rzpOrderId,
+        prefill: { name: name.trim(), contact: phone.trim() },
+        theme: { color: "#BF976A" },
+        config: {
+          display: {
+            blocks: {
+              utib: { name: "Pay via UPI", instruments: [{ method: "upi" }] },
+              other: { name: "Other Methods", instruments: [{ method: "card" }, { method: "netbanking" }] },
+            },
+            sequence: ["block.utib", "block.other"],
+            preferences: { show_default_blocks: false },
+          },
+        },
+      });
+
+      /* ── Step 3: Verify payment signature on server ── */
+      const verifyRes = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razorpayOrderId: paymentResponse.razorpay_order_id,
+          razorpayPaymentId: paymentResponse.razorpay_payment_id,
+          razorpaySignature: paymentResponse.razorpay_signature,
+        }),
+      });
+      const { success: verified } = await verifyRes.json();
+      if (!verified) throw new Error("Payment verification failed. Please contact us.");
+
+      /* ── Step 4: Save order to MongoDB with payment details ── */
       const payload = {
         customerName: name.trim(),
         customerPhone: phone.trim(),
@@ -185,6 +239,9 @@ export default function OrderingClient() {
           qty: x.qty,
         })),
         totalAmount: total,
+        razorpayOrderId: paymentResponse.razorpay_order_id,
+        razorpayPaymentId: paymentResponse.razorpay_payment_id,
+        paymentStatus: "Paid",
       };
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -192,9 +249,10 @@ export default function OrderingClient() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      
+
+      /* ── Step 5: Update local history + redirect ── */
       const newOrder: PastOrder = {
-        id: new Date().getTime().toString(),
+        id: paymentResponse.razorpay_payment_id,
         date: new Date().toLocaleString(),
         totalAmount: total,
         items: lines.map((x) => ({ name: x.item.name, qty: x.qty })),
@@ -206,11 +264,21 @@ export default function OrderingClient() {
       } catch (e) {}
 
       setSuccess(true);
-      setTimeout(() => {
-        window.location.href = data.redirectUrl;
-      }, 1000);
-    } catch (err) {
-      console.error("Order submission failed:", err);
+
+      // Build success page URL
+      const waUrl = encodeURIComponent(data.redirectUrl ?? "");
+      const successUrl = `/payment/success?type=order&payment_id=${paymentResponse.razorpay_payment_id}&order_id=${data.orderId ?? ""}&amount=${total}&wa=${waUrl}`;
+      setTimeout(() => { window.location.href = successUrl; }, 800);
+
+    } catch (err: any) {
+      console.error("Order payment failed:", err);
+      const reason = err?.message ?? "Payment did not complete.";
+      // If it's a dismissal, just show inline error instead of redirecting
+      if (reason.includes("cancelled")) {
+        setPaymentError("Payment was cancelled. Your cart is still saved.");
+      } else {
+        setPaymentError(reason);
+      }
       setIsSubmitting(false);
     }
   };
@@ -1011,19 +1079,43 @@ export default function OrderingClient() {
             </m.p>
           </div>
 
+          {/* Payment error inline */}
+          <AnimatePresence>
+            {paymentError && (
+              <m.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5"
+              >
+                <p className="font-mono-num text-[10px] text-red-600 leading-relaxed">{paymentError}</p>
+              </m.div>
+            )}
+          </AnimatePresence>
+
           <MagneticButton
             onClick={placeOrder}
             disabled={!lines.length || disabled || !isFormValid || isSubmitting || success}
             className="w-full rounded-full bg-[#1D0F07] py-4 font-mono-num text-[10px] uppercase tracking-[0.2em] text-[#FBF8F3] transition-colors hover:bg-[#BF976A] hover:text-[#1D0F07] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {success
-              ? "Redirecting to WhatsApp…"
+              ? "Redirecting…"
               : isSubmitting
-              ? "Processing…"
-              : "Place Order on WhatsApp"}
+              ? "Verifying Payment…"
+              : lines.length > 0
+              ? `Pay ${toCurrency(total)} & Place Order`
+              : "Place Order"}
           </MagneticButton>
+
+          {/* Test mode hint */}
+          {lines.length > 0 && !isSubmitting && !success && (
+            <p className="mt-3 text-center font-mono-num text-[9px] uppercase tracking-[0.18em] text-[#9B7340]/55">
+              🔒 Secured by Razorpay · Test Mode
+            </p>
+          )}
         </div>
       </m.aside>
+
 
       {/* My Orders Drawer */}
       <m.aside

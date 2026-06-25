@@ -19,6 +19,10 @@ const orderSchema = new Schema(
     items: [{ itemId: String, name: String, price: Number, qty: Number }],
     totalAmount: Number,
     status: { type: String, enum: ["Pending", "Completed", "Cancelled"], default: "Pending" },
+    // Payment fields (populated after Razorpay verification)
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed"], default: "Pending" },
   },
   { timestamps: true },
 );
@@ -49,6 +53,11 @@ const reservationSchema = new Schema(
     specialOccasion: { type: String },
     specialInstructions: { type: String },
     status: { type: String, enum: ["Pending", "Confirmed", "Completed", "Cancelled"], default: "Pending" },
+    // Payment fields (populated after Razorpay verification)
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    paymentAmount: { type: Number },
+    paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed"], default: "Pending" },
   },
   { timestamps: true },
 );
