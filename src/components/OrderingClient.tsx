@@ -308,6 +308,7 @@ export default function OrderingClient() {
             <a href="#menu" className="text-[#9B7340] transition-colors hover:text-[#1D0F07]">Menu</a>
             <a href="#gallery" className="text-[#9B7340] transition-colors hover:text-[#1D0F07]">Gallery</a>
             <a href="#contact" className="text-[#9B7340] transition-colors hover:text-[#1D0F07]">Contact</a>
+            <a href="/manage-booking" className="text-[#9B7340] transition-colors hover:text-[#1D0F07]">Manage Booking</a>
             <a href="/book-a-table" className="text-[#BF976A] font-semibold transition-colors hover:text-[#1D0F07]">Book Table</a>
           </div>
 
@@ -1198,8 +1199,14 @@ export default function OrderingClient() {
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {reservationHistory.length === 0 ? (
-            <div className="rounded-[16px] border border-[#BF976A]/18 py-8 text-center">
-              <p className="font-serif text-sm text-[#8B7355]">No reservations yet.</p>
+            <div className="rounded-[16px] border border-[#BF976A]/18 py-8 text-center flex flex-col items-center">
+              <p className="font-serif text-sm text-[#8B7355] mb-3">No reservations yet.</p>
+              <a
+                href="/manage-booking"
+                className="font-mono-num text-[10px] uppercase tracking-wider text-[#BF976A] hover:text-[#1D0F07] transition-colors font-semibold"
+              >
+                Look up by Ref ID →
+              </a>
             </div>
           ) : (
             <div className="flex flex-col gap-5">
@@ -1212,27 +1219,16 @@ export default function OrderingClient() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-2 font-serif text-[13px] text-[#1D0F07]">
-                    <p><strong>Ref:</strong> {res.referenceId}</p>
+                    <p><strong>Ref:</strong> <span className="font-mono">{res.referenceId}</span></p>
                     <p><strong>Guests:</strong> {res.guests}</p>
                   </div>
-                  {res.status === 'Pending' && (
-                    <button 
-                      onClick={async () => {
-                        try {
-                          await fetch(`/api/reservations/${res._id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "Cancelled" })
-                          });
-                          const updated = reservationHistory.map(r => r._id === res._id ? { ...r, status: "Cancelled" } : r);
-                          setReservationHistory(updated);
-                          localStorage.setItem("woodlands_reservations", JSON.stringify(updated));
-                        } catch (e) {}
-                      }}
-                      className="mt-4 w-full rounded-lg border border-red-200 py-2 text-xs text-red-600 transition-colors hover:bg-red-50"
+                  {res.status !== 'Cancelled' && res.status !== 'Completed' && (
+                    <a
+                      href={`/manage-booking?ref=${res.referenceId}`}
+                      className="mt-4 block text-center w-full rounded-lg border border-[#BF976A]/30 py-2.5 text-xs text-[#9B7340] hover:text-[#1D0F07] hover:bg-[#BF976A]/10 transition-all font-mono-num font-semibold uppercase tracking-wider"
                     >
-                      Cancel Reservation
-                    </button>
+                      Manage / Cancel
+                    </a>
                   )}
                 </div>
               ))}

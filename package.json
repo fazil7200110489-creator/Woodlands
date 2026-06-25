@@ -25,6 +25,7 @@
     "mongoose": "^9.5.0",
     "next": "^16.2.4",
     "node-cron": "^4.2.1",
+    "nodemailer": "^9.0.1",
     "qrcode-terminal": "^0.12.0",
     "razorpay": "^2.9.6",
     "react": "^19.2.5",

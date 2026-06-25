@@ -38,6 +38,7 @@ export type ReservationStatus = "Pending" | "Confirmed" | "Completed" | "Cancell
 export type Reservation = {
   _id?: string;
   referenceId: string;
+  tableNumber?: number;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
@@ -47,6 +48,17 @@ export type Reservation = {
   specialOccasion?: string;
   specialInstructions?: string;
   status: ReservationStatus;
+  // Payment
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paymentAmount?: number;
+  paymentStatus?: string;
+  // Refund
+  refundId?: string;
+  refundAmount?: number;
+  refundStatus?: string;
+  refundDate?: string;
+  cancelledAt?: string;
   createdAt?: string;
   updatedAt?: string;
 };

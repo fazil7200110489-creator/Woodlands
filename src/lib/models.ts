@@ -44,6 +44,7 @@ export const SettingsModel = models.Settings || model("Settings", settingsSchema
 const reservationSchema = new Schema(
   {
     referenceId: { type: String, required: true, unique: true },
+    tableNumber: { type: Number },
     customerName: { type: String, required: true },
     customerPhone: { type: String, required: true },
     customerEmail: { type: String },
@@ -57,7 +58,13 @@ const reservationSchema = new Schema(
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
     paymentAmount: { type: Number },
-    paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed"], default: "Pending" },
+    paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed", "Refunded", "Partially Refunded"], default: "Pending" },
+    // Refund fields (populated after cancellation + refund)
+    refundId: { type: String },
+    refundAmount: { type: Number },
+    refundStatus: { type: String, enum: ["None", "Processing", "Processed", "Failed"], default: "None" },
+    refundDate: { type: Date },
+    cancelledAt: { type: Date },
   },
   { timestamps: true },
 );
