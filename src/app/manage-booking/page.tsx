@@ -24,7 +24,7 @@ import {
 import MagneticButton from "@/components/MagneticButton";
 import { RESTAURANT_TABLES } from "@/lib/tableConfig";
 
-const ease = [0.16, 1, 0.3, 1];
+const ease = [0.16, 1, 0.3, 1] as const;
 
 function ManageBookingContent() {
   const searchParams = useSearchParams();
