@@ -1,30 +1,8 @@
-/**
- * Notification utility for booking confirmations.
- *
- * Supports:
- * - Email (via Nodemailer with Gmail SMTP or any SMTP provider)
- * - WhatsApp (optional, via existing WhatsApp Cloud API)
- *
- * Environment variables:
- * - SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM — for email
- * - WHATSAPP_CLOUD_TOKEN, WHATSAPP_PHONE_NUMBER_ID — for WhatsApp (existing)
- *
- * If SMTP env vars are not set, email sending is silently skipped.
- * If WhatsApp env vars are not set, WhatsApp is silently skipped.
- */
+import "server-only";
+import nodemailer from "nodemailer";
+import { type BookingDetails, buildWhatsAppShareUrl } from "./notifications-shared";
 
-type BookingDetails = {
-  referenceId: string;
-  customerName: string;
-  customerPhone: string;
-  customerEmail?: string;
-  tableLabel: string;
-  date: string;
-  timeSlot: string;
-  guests: number;
-  paymentAmount: number;
-  paymentId?: string;
-};
+export { type BookingDetails, buildWhatsAppShareUrl };
 
 // ─── Email ──────────────────────────────────────────────────────────────
 
@@ -41,8 +19,6 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
   }
 
   try {
-    // Dynamic import to avoid bundling nodemailer on the client side
-    const nodemailer = await import("nodemailer");
     const transporter = nodemailer.createTransport({
       host,
       port: Number(port) || 587,
@@ -250,18 +226,4 @@ export async function sendCancellationNotification(
   }
 
   return results;
-}
-
-/** Generate a WhatsApp redirect URL for the customer to share their booking */
-export function buildWhatsAppShareUrl(booking: BookingDetails): string {
-  const message = [
-    `🍽️ I've booked a table at Woodlands Grill House!`,
-    ``,
-    `📋 Ref: ${booking.referenceId}`,
-    `🪑 Table: ${booking.tableLabel}`,
-    `📅 ${booking.date} at ${booking.timeSlot}`,
-    `👥 ${booking.guests} guests`,
-  ].join("\n");
-
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
