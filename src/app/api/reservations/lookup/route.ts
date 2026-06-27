@@ -39,44 +39,36 @@ export async function POST(req: Request) {
 
     await connectDB();
     const body = await req.json();
-    const { referenceId, customerPhone, customerEmail } = body;
+    const { customerPhone, date, bookingDate } = body;
 
-    if (!referenceId || !customerPhone) {
+    const cleanPhone = customerPhone?.trim();
+    const cleanDate = (date || bookingDate)?.trim();
+
+    if (!cleanPhone || typeof cleanPhone !== "string" || cleanPhone.length < 8) {
       return NextResponse.json(
-        { error: "Booking reference and mobile number are required." },
+        { error: "A valid mobile number is required." },
         { status: 400 }
       );
     }
 
-    const cleanRef = referenceId.trim().toUpperCase();
-    const cleanPhone = customerPhone.trim();
-
-    // Query for reservation
-    const reservation = await ReservationModel.findOne({
-      referenceId: cleanRef,
-      customerPhone: cleanPhone,
-    }).lean();
-
-    // Check if reservation exists
-    if (!reservation) {
+    if (!cleanDate || typeof cleanDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
       return NextResponse.json(
-        { error: "Booking not found or verification failed." },
-        { status: 404 }
+        { error: "A valid booking date (YYYY-MM-DD) is required." },
+        { status: 400 }
       );
     }
 
-    // Verify email if it was originally provided and if client sent it
-    if (customerEmail && reservation.customerEmail) {
-      if (reservation.customerEmail.trim().toLowerCase() !== customerEmail.trim().toLowerCase()) {
-        return NextResponse.json(
-          { error: "Booking not found or verification failed." },
-          { status: 404 }
-        );
-      }
-    }
+    // Log the lookup attempt
+    console.log(`[BOOKING LOOKUP ATTEMPT] [${new Date().toISOString()}] IP: ${ip} | Phone: ${cleanPhone} | Date: ${cleanDate}`);
+
+    // Query for matching active reservations sorted by creation time
+    const reservations = await ReservationModel.find({
+      customerPhone: cleanPhone,
+      date: cleanDate,
+    }).sort({ createdAt: -1 }).lean();
 
     // Return sanitized fields
-    const responseData = {
+    const responseData = reservations.map((reservation: any) => ({
       referenceId: reservation.referenceId,
       customerName: reservation.customerName,
       customerPhone: reservation.customerPhone,
@@ -89,11 +81,13 @@ export async function POST(req: Request) {
       paymentStatus: reservation.paymentStatus,
       paymentAmount: reservation.paymentAmount,
       specialOccasion: reservation.specialOccasion,
+      specialInstructions: reservation.specialInstructions,
+      razorpayPaymentId: reservation.razorpayPaymentId,
       refundId: reservation.refundId,
       refundAmount: reservation.refundAmount,
       refundStatus: reservation.refundStatus,
       createdAt: reservation.createdAt,
-    };
+    }));
 
     return NextResponse.json(responseData);
   } catch (err: any) {
