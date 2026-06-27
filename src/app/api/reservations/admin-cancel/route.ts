@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ReservationModel } from "@/lib/models";
 import { calculateRefund } from "@/lib/refundPolicy";
 import { sendCancellationNotification } from "@/lib/notifications";
 import { RESTAURANT_TABLES } from "@/lib/tableConfig";
 import Razorpay from "razorpay";
+import { requireAdminAuth } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,11 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Admin-only: only authenticated admins can cancel reservations and trigger refunds
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const body = await req.json();

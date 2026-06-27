@@ -1,15 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ReservationModel } from "@/lib/models";
 import { generateBookingReference } from "@/lib/referenceId";
 import { sendBookingConfirmation } from "@/lib/notifications";
 import { RESTAURANT_TABLES } from "@/lib/tableConfig";
+import { requireAdminAuth } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
 const MAX_GUESTS_PER_SLOT = 40;
 
-export async function GET() {
+// GET — admin only (full reservation list)
+export async function GET(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const data = await ReservationModel.find().sort({ createdAt: -1 }).lean();
@@ -20,7 +25,8 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+// POST — public (customers make bookings)
+export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const body = await req.json();
@@ -98,4 +104,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to create reservation: " + err.message }, { status: 500 });
   }
 }
-

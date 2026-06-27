@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { OrderModel } from "@/lib/models";
 import { sendWhatsAppCloudMessage } from "@/lib/whatsapp";
 import { toCurrency } from "@/lib/pickup";
+import { requireAdminAuth } from "@/lib/auth";
 
 function dateFmt(d: Date) {
   return d.toLocaleDateString("en-GB");
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   await connectDB();
   const start = new Date();
   start.setHours(0, 0, 0, 0);

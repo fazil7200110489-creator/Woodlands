@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ReservationModel } from "@/lib/models";
+import { requireAdminAuth } from "@/lib/auth";
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const body = await req.json();
@@ -25,7 +29,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const { id } = await params;

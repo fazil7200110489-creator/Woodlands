@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { SettingsModel } from "@/lib/models";
 import { ensureSeeded } from "@/lib/seed";
+import { requireAdminAuth } from "@/lib/auth";
 
+// GET is public — used by the booking form to check open/close state
 export async function GET() {
   try {
     await ensureSeeded();
@@ -14,7 +16,11 @@ export async function GET() {
   }
 }
 
-export async function PATCH(req: Request) {
+// PATCH — admin only
+export async function PATCH(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const body = await req.json();

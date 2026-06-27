@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { initialMenu } from "@/lib/menuData";
 import { MenuItemModel } from "@/lib/models";
 import { ensureSeeded } from "@/lib/seed";
+import { requireAdminAuth } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
+// GET is public — used by the storefront to display the menu
 export async function GET() {
   try {
     await ensureSeeded();
@@ -17,7 +19,11 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+// POST, PATCH, DELETE — admin only
+export async function POST(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const body = await req.json();
@@ -29,7 +35,10 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const body = await req.json();
@@ -42,7 +51,10 @@ export async function PATCH(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const { id } = await req.json();

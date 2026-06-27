@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { OrderModel } from "@/lib/models";
 import { buildOrderMessage, buildWhatsAppRedirect } from "@/lib/whatsapp";
+import { requireAdminAuth } from "@/lib/auth";
 
-export async function POST(req: Request) {
+// POST is public — customers place orders
+export async function POST(req: NextRequest) {
   const body = await req.json();
   const message = buildOrderMessage({
     items: body.items,
@@ -24,13 +26,20 @@ export async function POST(req: Request) {
   });
 }
 
-export async function GET() {
+// GET and PATCH — admin only
+export async function GET(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   await connectDB();
   const orders = await OrderModel.find().sort({ createdAt: -1 }).limit(200);
   return NextResponse.json(orders);
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     await connectDB();
     const { id, status } = await req.json();
