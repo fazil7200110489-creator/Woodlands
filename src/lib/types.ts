@@ -22,7 +22,34 @@ export type CartLine = {
   qty: number;
 };
 
-export type OrderStatus = "Pending" | "Completed" | "Cancelled";
+export type OrderStatus =
+  | "Pending"
+  | "Accepted"
+  | "Preparing"
+  | "Ready for Pickup"
+  | "Completed"
+  | "Cancelled";
+
+export type PaymentStatus = "Pending" | "Paid" | "Failed" | "Refunded";
+
+export type Order = {
+  _id: string;
+  customerName: string;
+  customerPhone: string;
+  pickupTime: string;
+  items: CartLine[];
+  totalAmount: number;
+  status: OrderStatus;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paymentStatus: PaymentStatus;
+  amountPaid?: number;
+  paymentTime?: string;
+  refundId?: string;
+  refundAmount?: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type OrderPayload = {
   customerName: string;

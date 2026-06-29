@@ -18,11 +18,24 @@ const orderSchema = new Schema(
     pickupTime: String,
     items: [{ itemId: String, name: String, price: Number, qty: Number }],
     totalAmount: Number,
-    status: { type: String, enum: ["Pending", "Completed", "Cancelled"], default: "Pending" },
+    status: {
+      type: String,
+      enum: ["Pending", "Accepted", "Preparing", "Ready for Pickup", "Completed", "Cancelled"],
+      default: "Pending",
+    },
     // Payment fields (populated after Razorpay verification)
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
-    paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed"], default: "Pending" },
+    paymentStatus: {
+      type: String,
+      enum: ["Pending", "Paid", "Failed", "Refunded"],
+      default: "Pending",
+    },
+    amountPaid: { type: Number },
+    paymentTime: { type: Date },
+    // Refund fields
+    refundId: { type: String },
+    refundAmount: { type: Number },
   },
   { timestamps: true },
 );

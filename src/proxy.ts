@@ -12,13 +12,18 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
  *     GET /api/reservations (admin list), POST /api/reservations/admin-cancel
  */
 
-const ADMIN_PAGE_MATCHER = /^\/admin(\/|$)/;
+const ADMIN_PAGE_MATCHER = /^\/admin(\/$|$)/;
 const ADMIN_LOGIN_PATH = "/admin/login";
+
+/** Customer order status pages — always public */
+const ORDER_STATUS_MATCHER = /^\/order\//;
 
 /** API routes that are ALWAYS public (customer-facing) */
 const PUBLIC_API_PATTERNS: { method?: string; path: RegExp }[] = [
   // Customer ordering — always public
   { method: "POST", path: /^\/api\/orders$/ },
+  // Customer order status lookup (single order by ID) — always public
+  { method: "GET", path: /^\/api\/orders\/[^/]+$/ },
   // Payment flows — always public
   { path: /^\/api\/payment\// },
   // Customer reservation actions — always public
@@ -82,9 +87,14 @@ function isAuthenticated(req: NextRequest): boolean {
   return payload !== null;
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const method = req.method.toUpperCase();
+
+  // ── Customer order status pages — always public ────────────────────────
+  if (ORDER_STATUS_MATCHER.test(pathname)) {
+    return NextResponse.next();
+  }
 
   // ── Admin page protection ──────────────────────────────────────────────
   if (ADMIN_PAGE_MATCHER.test(pathname)) {
