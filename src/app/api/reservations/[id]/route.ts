@@ -21,6 +21,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!updated) {
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
     }
+
+    // ── Resync customer profile on status updates ─────────────────────────
+    if (updated.customerPhone) {
+      const { syncCustomer } = await import("@/lib/customer-utils");
+      syncCustomer(updated.customerPhone).catch((err) =>
+        console.error("Failed to sync customer on reservation PATCH:", err)
+      );
+    }
+
+    // ── Notify admin panels to refresh analytics and lists ────────────────
+    try {
+      const { emitAnalyticsRefresh } = await import("@/lib/sse-emitter");
+      emitAnalyticsRefresh();
+    } catch (_) {}
     
     return NextResponse.json(updated);
   } catch (err) {
@@ -37,7 +51,16 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await connectDB();
     const { id } = await params;
     
-    await ReservationModel.findByIdAndDelete(id);
+    const deleted = await ReservationModel.findByIdAndDelete(id);
+    if (deleted && deleted.customerPhone) {
+      const { syncCustomer } = await import("@/lib/customer-utils");
+      syncCustomer(deleted.customerPhone).catch(() => {});
+      
+      try {
+        const { emitAnalyticsRefresh } = await import("@/lib/sse-emitter");
+        emitAnalyticsRefresh();
+      } catch (_) {}
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/reservations/[id]]", err);

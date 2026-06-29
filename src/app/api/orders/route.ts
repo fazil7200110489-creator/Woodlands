@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
     });
     orderId = String(savedOrder._id);
 
+    // ── Update/Upsert customer profile in background ─────────────────────
+    const { syncCustomer } = await import("@/lib/customer-utils");
+    syncCustomer(savedOrder.customerPhone).catch((err) =>
+      console.error("Failed to sync customer on order save:", err)
+    );
+
     // ── Fire SSE event to all connected admin tabs ───────────────────────
     emitNewOrder({
       _id: orderId,
@@ -106,6 +112,14 @@ export async function PATCH(req: NextRequest) {
 
     if (!updated) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    // ── Resync customer profile on status updates ─────────────────────────
+    if (updated.customerPhone) {
+      const { syncCustomer } = await import("@/lib/customer-utils");
+      syncCustomer(updated.customerPhone).catch((err) =>
+        console.error("Failed to sync customer on order status update:", err)
+      );
     }
 
     // ── Fire SSE status-change event to all connected admin tabs ─────────

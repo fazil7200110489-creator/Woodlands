@@ -156,6 +156,27 @@ export default function OrderingClient() {
     } catch (e) {}
   }, []);
 
+  const [liveStatuses, setLiveStatuses] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (historyDrawer && orderHistory.length > 0) {
+      orderHistory.forEach(async (oh) => {
+        if (!oh.id) return;
+        try {
+          const r = await fetch(`/api/orders/${oh.id}`);
+          if (r.ok) {
+            const data = await r.json();
+            if (data && data.status) {
+              setLiveStatuses((prev) => ({ ...prev, [oh.id]: data.status }));
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch status for order", oh.id, e);
+        }
+      });
+    }
+  }, [historyDrawer, orderHistory]);
+
   // Reset modalQty when a new item is selected
   useEffect(() => {
     setModalQty(1);
@@ -252,7 +273,7 @@ export default function OrderingClient() {
 
       /* ── Step 5: Update local history + redirect ── */
       const newOrder: PastOrder = {
-        id: paymentResponse.razorpay_payment_id,
+        id: data.orderId || paymentResponse.razorpay_payment_id,
         date: new Date().toLocaleString(),
         totalAmount: total,
         items: lines.map((x) => ({ name: x.item.name, qty: x.qty })),
@@ -1151,21 +1172,46 @@ export default function OrderingClient() {
             </div>
           ) : (
             <div className="flex flex-col gap-5">
-              {orderHistory.map((order) => (
-                <div key={order.id} className="rounded-[16px] border border-[#BF976A]/20 bg-white/50 p-5 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-[#BF976A]/15 pb-3 mb-3">
-                    <p className="font-mono-num text-[10px] uppercase text-[#8B7355]">{order.date}</p>
-                    <p className="font-display text-lg text-[#BF976A]">{toCurrency(order.totalAmount)}</p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {order.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between font-serif text-[13px] text-[#1D0F07]">
-                        <span>{item.qty}x {item.name}</span>
+              {orderHistory.map((order) => {
+                const liveStatus = liveStatuses[order.id];
+                return (
+                  <div key={order.id} className="rounded-[16px] border border-[#BF976A]/20 bg-white/50 p-5 shadow-sm">
+                    <div className="flex items-center justify-between border-b border-[#BF976A]/15 pb-3 mb-3">
+                      <div>
+                        <p className="font-mono-num text-[10px] uppercase text-[#8B7355]">{order.date}</p>
+                        {liveStatus && (
+                          <span className={`inline-block mt-1 rounded-full px-2 py-0.5 font-mono-num text-[8px] uppercase tracking-wider ${
+                            liveStatus === 'Completed' ? 'bg-gray-100 text-gray-700' :
+                            liveStatus === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                            liveStatus === 'Ready for Pickup' ? 'bg-emerald-100 text-emerald-700' :
+                            liveStatus === 'Preparing' ? 'bg-orange-100 text-orange-700' :
+                            liveStatus === 'Accepted' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {liveStatus}
+                          </span>
+                        )}
                       </div>
-                    ))}
+                      <p className="font-display text-lg text-[#BF976A]">{toCurrency(order.totalAmount)}</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between font-serif text-[13px] text-[#1D0F07]">
+                          <span>{item.qty}x {item.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {order.id && (
+                      <a
+                        href={`/order/${order.id}`}
+                        className="mt-4 block text-center w-full rounded-lg border border-[#BF976A]/30 py-2 text-xs text-[#9B7340] hover:text-[#1D0F07] hover:bg-[#BF976A]/10 transition-all font-mono-num font-semibold uppercase tracking-wider"
+                      >
+                        Track Live Status →
+                      </a>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

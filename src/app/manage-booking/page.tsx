@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Receipt,
   UtensilsCrossed,
+  Star,
 } from "lucide-react";
 import MagneticButton from "@/components/MagneticButton";
 import { RESTAURANT_TABLES } from "@/lib/tableConfig";
@@ -47,6 +48,43 @@ function ManageBookingContent() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState<any | null>(null);
+
+  // Reviews states
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReservation) return;
+    setReviewSubmitting(true);
+    setReviewError(null);
+
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reservationId: selectedReservation._id,
+          rating: reviewRating,
+          reviewText,
+        }),
+      });
+
+      if (res.ok) {
+        setReviewSubmitted(true);
+      } else {
+        const data = await res.json();
+        setReviewError(data.error || "Failed to submit review.");
+      }
+    } catch {
+      setReviewError("Network error. Please try again.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   // Auto-fill from query parameters if present
   useEffect(() => {
@@ -707,6 +745,68 @@ We look forward to serving you.
                         ID: {selectedReservation.refundId} · Status: {selectedReservation.refundStatus}
                       </p>
                     </div>
+                  </div>
+                )}
+                {/* Rate Experience Card */}
+                {selectedReservation.status === "Completed" && (
+                  <div className="mt-6 rounded-2xl border border-[#BF976A]/20 bg-[#FBF8F3]/55 p-6 shadow-sm">
+                    <h3 className="font-display text-base text-[#1D0F07] mb-1 text-center">Rate Your Experience</h3>
+                    <p className="font-serif text-xs text-[#5C4A38] text-center mb-4">
+                      How was your table booking and dining experience at Woodlands? Let us know!
+                    </p>
+
+                    {reviewSubmitted ? (
+                      <div className="text-center py-4 space-y-1">
+                        <CheckCircle className="mx-auto text-emerald-500" size={28} />
+                        <p className="font-serif text-sm text-[#1D0F07] font-semibold">Thank you for your review!</p>
+                        <p className="font-serif text-xs text-gray-500">Your feedback helps us serve you better.</p>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleReviewSubmit} className="space-y-4 max-w-sm mx-auto">
+                        {reviewError && (
+                          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700">
+                            {reviewError}
+                          </div>
+                        )}
+
+                        {/* Star Rating selector */}
+                        <div className="flex justify-center items-center gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setReviewRating(star)}
+                              className="text-[#BF976A] focus:outline-none transition-transform hover:scale-110"
+                            >
+                              <Star
+                                size={24}
+                                fill={star <= reviewRating ? "#BF976A" : "none"}
+                              />
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Text area */}
+                        <div>
+                          <textarea
+                            rows={3}
+                            value={reviewText}
+                            onChange={(e) => setReviewText(e.target.value)}
+                            placeholder="Write your review here (optional)..."
+                            className="w-full rounded-xl border border-[#BF976A]/20 bg-white p-3 text-sm focus:border-[#BF976A] focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Submit Button */}
+                        <button
+                          type="submit"
+                          disabled={reviewSubmitting}
+                          className="w-full rounded-full bg-[#1D0F07] py-3 font-mono-num text-[10px] uppercase tracking-[0.2em] text-[#FBF8F3] transition-colors hover:bg-[#BF976A] hover:text-[#1D0F07] disabled:opacity-50"
+                        >
+                          {reviewSubmitting ? "Submitting..." : "Submit Review"}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 )}
               </div>

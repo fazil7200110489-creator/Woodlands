@@ -83,3 +83,41 @@ const reservationSchema = new Schema(
 );
 
 export const ReservationModel = models.Reservation || model("Reservation", reservationSchema);
+
+const customerSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    phone: { type: String, required: true, unique: true },
+    email: { type: String },
+    totalOrders: { type: Number, default: 0 },
+    totalReservations: { type: Number, default: 0 },
+    totalAmountSpent: { type: Number, default: 0 },
+    lastOrderDate: { type: Date },
+    lastReservationDate: { type: Date },
+    favoriteItems: [{ type: String }],
+    preferredTable: { type: Number },
+    avgOrderValue: { type: Number, default: 0 },
+    status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
+  },
+  { timestamps: true }
+);
+
+export const CustomerModel = models.Customer || model("Customer", customerSchema);
+
+const reviewSchema = new Schema(
+  {
+    customerName: { type: String, required: true },
+    customerPhone: { type: String, required: true },
+    orderId: { type: Schema.Types.ObjectId, ref: "Order" },
+    reservationId: { type: Schema.Types.ObjectId, ref: "Reservation" },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    reviewText: { type: String },
+    foodOrdered: [{ type: String }],
+    tableNumber: { type: Number },
+    status: { type: String, enum: ["Approved", "Hidden"], default: "Approved" },
+    replyText: { type: String },
+  },
+  { timestamps: true }
+);
+
+export const ReviewModel = models.Review || model("Review", reviewSchema);

@@ -12,7 +12,7 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
  *     GET /api/reservations (admin list), POST /api/reservations/admin-cancel
  */
 
-const ADMIN_PAGE_MATCHER = /^\/admin(\/$|$)/;
+const ADMIN_PAGE_MATCHER = /^\/admin(\/|$)/;
 const ADMIN_LOGIN_PATH = "/admin/login";
 
 /** Customer order status pages — always public */
@@ -37,6 +37,9 @@ const PUBLIC_API_PATTERNS: { method?: string; path: RegExp }[] = [
   { method: "GET", path: /^\/api\/menu$/ },
   // Settings read — public (used by booking form for open/close state)
   { method: "GET", path: /^\/api\/settings$/ },
+  // Reviews read and write (public)
+  { method: "GET", path: /^\/api\/reviews$/ },
+  { method: "POST", path: /^\/api\/reviews$/ },
   // Auth endpoints themselves
   { path: /^\/api\/admin\/auth\// },
 ];
@@ -52,8 +55,12 @@ const PROTECTED_API_PATTERNS: { method?: string; path: RegExp }[] = [
   { method: "PATCH", path: /^\/api\/orders/ },
   // Settings mutations
   { method: "PATCH", path: /^\/api\/settings/ },
-  // Reports
-  { method: "POST", path: /^\/api\/reports\// },
+  // Reports & Analytics
+  { path: /^\/api\/admin\/reports/ },
+  { path: /^\/api\/admin\/analytics/ },
+  { path: /^\/api\/admin\/customers/ },
+  // Reviews moderation (admin only)
+  { path: /^\/api\/reviews\/[^/]+$/ },
   // Reservations — admin list and admin-cancel
   { method: "GET", path: /^\/api\/reservations$/ },
   { method: "PATCH", path: /^\/api\/reservations/ },

@@ -14,9 +14,19 @@ export async function GET(
     }
 
     await connectDB();
-    const order = await OrderModel.findById(id).select(
-      "_id customerName pickupTime items totalAmount status paymentStatus amountPaid createdAt updatedAt"
-    );
+    
+    let order = null;
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+
+    if (isObjectId) {
+      order = await OrderModel.findById(id).select(
+        "_id customerName pickupTime items totalAmount status paymentStatus amountPaid createdAt updatedAt"
+      );
+    } else {
+      order = await OrderModel.findOne({ razorpayPaymentId: id }).select(
+        "_id customerName pickupTime items totalAmount status paymentStatus amountPaid createdAt updatedAt"
+      );
+    }
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });

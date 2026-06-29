@@ -77,6 +77,20 @@ export async function POST(req: NextRequest) {
 
     // Send notifications if reservation is confirmed and paid
     if (created.status === "Confirmed") {
+      // ── Update/Upsert customer profile in background ─────────────────────
+      const { syncCustomer } = await import("@/lib/customer-utils");
+      syncCustomer(created.customerPhone).catch((err) =>
+        console.error("Failed to sync customer on reservation save:", err)
+      );
+
+      // ── Fire SSE event to all connected admin tabs ───────────────────────
+      try {
+        const { emitNewReservation } = await import("@/lib/sse-emitter");
+        emitNewReservation(created);
+      } catch (sseErr) {
+        console.warn("Could not emit reservation SSE", sseErr);
+      }
+
       const tableObj = RESTAURANT_TABLES.find(t => t.id === created.tableNumber);
       const tableLabel = tableObj ? tableObj.label : `Table ${created.tableNumber}`;
       
