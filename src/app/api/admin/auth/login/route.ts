@@ -19,14 +19,19 @@ export async function POST(req: Request) {
     const adminUsername = process.env.ADMIN_USERNAME;
     const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
 
-    if (!adminUsername || !adminPasswordHash) {
-      console.error("[login] ADMIN_USERNAME or ADMIN_PASSWORD_HASH not set");
+    // if (!adminUsername || !adminPasswordHash) {
+    //   console.error("[login] ADMIN_USERNAME or ADMIN_PASSWORD_HASH not set");
+    //   return NextResponse.json(
+    //     { error: "Server configuration error." },
+    //     { status: 500 }
+    //   );
+    // }
+    if (!adminPasswordHash) {
       return NextResponse.json(
-        { error: "Server configuration error." },
+        { error: "ADMIN_PASSWORD_HASH is missing" },
         { status: 500 }
       );
     }
-
     // Validate username (case-sensitive)
     if (username !== adminUsername) {
       // Use the same delay as bcrypt to prevent username enumeration
