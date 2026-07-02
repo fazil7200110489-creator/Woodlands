@@ -1,5 +1,34 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
+
+async function verifyRazorpaySignature(
+  orderId: string,
+  paymentId: string,
+  signature: string,
+  secret: string
+): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${orderId}|${paymentId}`);
+  const keyData = encoder.encode(secret);
+
+  const cryptoKey = await globalThis.crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const signatureBytes = new Uint8Array(
+    signature.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
+  );
+
+  return await globalThis.crypto.subtle.verify(
+    "HMAC",
+    cryptoKey,
+    signatureBytes,
+    data
+  );
+}
 
 export async function POST(req: Request) {
   try {
@@ -14,14 +43,12 @@ export async function POST(req: Request) {
     }
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET!;
-    const body = `${razorpayOrderId}|${razorpayPaymentId}`;
-
-    const expectedSignature = crypto
-      .createHmac("sha256", keySecret)
-      .update(body)
-      .digest("hex");
-
-    const isValid = expectedSignature === razorpaySignature;
+    const isValid = await verifyRazorpaySignature(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      keySecret
+    );
 
     if (!isValid) {
       console.warn("[verify] Signature mismatch", {

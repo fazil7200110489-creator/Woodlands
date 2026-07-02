@@ -94,7 +94,7 @@ function isAuthenticated(req: NextRequest): boolean {
   return payload !== null;
 }
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const method = req.method.toUpperCase();
 
