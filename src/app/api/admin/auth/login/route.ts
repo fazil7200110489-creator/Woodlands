@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { UserModel } from "@/lib/models";
 import {
   verifyPassword,
   createSessionToken,
   getSessionCookieOptions,
-  getAdminUsername,
-  getAdminPasswordHash,
-  hasAdminSessionSecret,
-  getAdminPasswordHashDiagnostics,
 } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -20,56 +18,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // STEP 1 & STEP 7: Environment Loaded check
-    const adminUsername = getAdminUsername();
-    const adminPasswordHash = getAdminPasswordHash();
-    const adminSessionSecretLoaded = hasAdminSessionSecret();
-    const diagnostics = getAdminPasswordHashDiagnostics();
+    await connectDB();
 
-    console.log("Environment Loaded");
-    console.log(`ADMIN_USERNAME Loaded: ${!!adminUsername}`);
-    console.log(`ADMIN_PASSWORD_HASH Loaded: ${!!adminPasswordHash}`);
-    console.log(`ADMIN_SESSION_SECRET Loaded: ${adminSessionSecretLoaded}`);
-    console.log(`Diagnostics - Raw Env Hash SHA-256: ${diagnostics.rawSha256}`);
-    console.log(`Diagnostics - Decoded Hash SHA-256: ${diagnostics.decodedSha256}`);
-    console.log(`Diagnostics - Raw Length: ${diagnostics.rawLength}, Decoded Length: ${diagnostics.decodedLength}`);
-
-    // STEP 2: Verify login request
-    console.log(`Username received: ${username}`);
+    const cleanUsername = username.trim().toLowerCase();
     
-    // Normalize both inputs (trim whitespace and convert to lowercase for case-insensitivity)
-    const normalizedEntered = username.trim().toLowerCase();
-    const normalizedStored = adminUsername.trim().toLowerCase();
-    const usernameMatches = normalizedEntered === normalizedStored;
-    
-    console.log(`Entered Username (Normalized): ${normalizedEntered}`);
-    console.log(`Stored Username (Normalized): ${normalizedStored}`);
-    console.log(`Entered Length: ${username.length}, Stored Length: ${adminUsername.length}`);
-    console.log(`Whether username matches ADMIN_USERNAME: ${usernameMatches}`);
+    // Find the user by username (case-insensitive)
+    const user = await UserModel.findOne({
+      username: { $regex: new RegExp(`^${escapeRegex(cleanUsername)}$`, "i") }
+    });
 
-    if (!adminUsername || !adminPasswordHash) {
-      console.error("[login] ADMIN_USERNAME or ADMIN_PASSWORD_HASH not set");
-      return NextResponse.json(
-        { error: "Server configuration error." },
-        { status: 500 }
-      );
-    }
-
-    // Validate username (case-insensitive & trimmed)
-    if (!usernameMatches) {
-      // Use the same delay as bcrypt to prevent username enumeration
+    if (!user) {
+      // Delay to prevent user enumeration
       await new Promise((r) => setTimeout(r, 300));
       return NextResponse.json(
         { error: "Invalid username or password." },
         { status: 401 }
       );
     }
-    console.log("Username Match");
 
-    // STEP 3: Verify Password Hash
-    console.log("Checking verifyPassword()...");
-    const passwordValid = await verifyPassword(password, adminPasswordHash);
-    console.log(`Password Compare Result:\n${passwordValid}`);
+    if (!user.isActive) {
+      return NextResponse.json(
+        { error: "Account has been deactivated." },
+        { status: 403 }
+      );
+    }
+
+    // Verify Password
+    const passwordValid = await verifyPassword(password, user.passwordHash);
 
     if (!passwordValid) {
       return NextResponse.json(
@@ -77,24 +52,22 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
-    console.log("Password Match");
 
-    // STEP 5: Verify Session
-    console.log("Creating session token...");
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Create session token
     const token = createSessionToken({
-      sub: "admin",
+      sub: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      role: user.role,
       exp: Date.now() + 1000 * 60 * 60 * 24 * 7, // 7 days
     });
-    console.log(`createSessionToken() works correctly: ${!!token}`);
 
     const response = NextResponse.json({ ok: true });
     const cookieOpts = getSessionCookieOptions();
-    console.log(`HttpOnly cookie: ${!!cookieOpts.httpOnly}`);
-    console.log(`Secure cookie: ${!!cookieOpts.secure}`);
-    console.log(`SameSite: ${cookieOpts.sameSite}`);
-    console.log(`Cookie path: ${cookieOpts.path}`);
-    console.log(`Cookie expiry: ${cookieOpts.maxAge} seconds`);
-    console.log("Session Created");
 
     response.cookies.set({
       name: cookieOpts.name,
@@ -105,8 +78,6 @@ export async function POST(req: Request) {
       path: cookieOpts.path,
       maxAge: cookieOpts.maxAge,
     });
-    console.log("Cookie Set");
-    console.log("Redirect");
 
     return response;
   } catch (err) {
@@ -116,4 +87,8 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+}
+
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

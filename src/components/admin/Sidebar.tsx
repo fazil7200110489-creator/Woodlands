@@ -13,7 +13,9 @@ import {
   Star, 
   Settings,
   X,
-  Calendar
+  Calendar,
+  User,
+  Shield
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -29,8 +31,37 @@ const NAV_ITEMS = [
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function Sidebar({ 
+  isOpen, 
+  onClose, 
+  user 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  user?: { username: string; role: string } 
+}) {
   const pathname = usePathname();
+
+  // Dynamically build navigation items based on user role
+  const visibleItems = [...NAV_ITEMS];
+  
+  // Show User Management only to administrators
+  if (user && user.role === "admin") {
+    // Insert "User Management" after "Customers" or at the appropriate slot
+    const customersIndex = visibleItems.findIndex(item => item.href === "/admin/customers");
+    visibleItems.splice(customersIndex + 1, 0, {
+      name: "User Management",
+      href: "/admin/users",
+      icon: Shield
+    });
+  }
+
+  // Append My Profile to the sidebar navigation
+  visibleItems.push({
+    name: "My Profile",
+    href: "/admin/profile",
+    icon: User
+  });
 
   return (
     <>
@@ -59,7 +90,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
 
         <div className="flex-1 overflow-y-auto py-4">
           <nav className="space-y-1 px-3">
-            {NAV_ITEMS.map((item) => {
+            {visibleItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               const Icon = item.icon;
               return (

@@ -1,19 +1,38 @@
 import { initialMenu } from "@/lib/menuData";
 import { connectDB } from "@/lib/db";
-import { MenuItemModel, SettingsModel } from "@/lib/models";
+import { MenuItemModel, SettingsModel, UserModel } from "@/lib/models";
+import * as bcrypt from "bcryptjs";
 
 export async function ensureSeeded() {
   await connectDB();
-  const [count, settings] = await Promise.all([
+  const [count, settings, adminExists] = await Promise.all([
     MenuItemModel.countDocuments(),
     SettingsModel.findOne().lean(),
+    UserModel.findOne({ role: "admin" }).lean(),
   ]);
 
-  await Promise.all([
+  const tasks: Promise<any>[] = [
     // If no items exist yet, insert all from seed data
     count === 0 ? MenuItemModel.insertMany(initialMenu) : syncImages(),
-    !settings ? SettingsModel.create({}) : null,
-  ]);
+    !settings ? SettingsModel.create({}) : Promise.resolve(null),
+  ];
+
+  if (!adminExists) {
+    const passwordHash = await bcrypt.hash("Admin@123", 12);
+    tasks.push(
+      UserModel.create({
+        username: "Admin",
+        email: "admin@woodlands.com",
+        passwordHash,
+        role: "admin",
+        isActive: true,
+      }).then(() => {
+        console.log("Seeded default administrator account");
+      })
+    );
+  }
+
+  await Promise.all(tasks);
 }
 
 /**

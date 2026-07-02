@@ -1,27 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/admin/Sidebar";
 import Header from "@/components/admin/Header";
 import { LogOut } from "lucide-react";
 
-/**
- * Admin Dashboard Layout — wraps all /admin/(dashboard)/* routes.
- *
- * The (dashboard) route group excludes /admin/login, so the login page
- * renders completely independently without the sidebar/header chrome.
- *
- * Authentication is enforced by the proxy middleware BEFORE this layout
- * renders — so by the time this code runs the user is guaranteed authenticated.
- */
 export default function AdminDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState<{ username: string; role: string } | undefined>(undefined);
   const router = useRouter();
+
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await fetch("/api/admin/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        } else if (res.status === 401) {
+          router.replace("/admin/login");
+        }
+      } catch (e) {
+        console.error("Failed to load user session info:", e);
+      }
+    };
+    fetchMe();
+  }, [router]);
 
   const handleLogout = async () => {
     try {
@@ -37,10 +46,10 @@ export default function AdminDashboardLayout({
 
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden text-gray-900 font-sans">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Header onMenuClick={() => setSidebarOpen(true)} user={user} />
 
         <div className="bg-white border-b border-gray-100 px-4 py-2 flex justify-end md:px-8">
           <button

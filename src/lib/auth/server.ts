@@ -25,37 +25,25 @@ export function cleanEnvVar(val?: string): string {
   return clean.trim();
 }
 
-export function getAdminUsername(): string {
-  return cleanEnvVar(process.env.ADMIN_USERNAME);
-}
-
-export function getAdminPasswordHash(): string {
-  const hash = cleanEnvVar(process.env.ADMIN_PASSWORD_HASH);
-  if (hash.startsWith("base64:")) {
-    const base64Str = hash.substring("base64:".length);
-    return Buffer.from(base64Str, "base64").toString("utf-8");
+export function requireRole(
+  req: NextRequest | Request,
+  allowedRoles: string[]
+): NextResponse | null {
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
   }
-  return hash;
-}
-
-export function getAdminPasswordHashDiagnostics(): {
-  rawSha256: string;
-  decodedSha256: string;
-  rawLength: number;
-  decodedLength: number;
-} {
-  const raw = process.env.ADMIN_PASSWORD_HASH || "";
-  const decoded = getAdminPasswordHash();
-  return {
-    rawSha256: SHA256(raw),
-    decodedSha256: SHA256(decoded),
-    rawLength: raw.length,
-    decodedLength: decoded.length,
-  };
-}
-
-export function hasAdminSessionSecret(): boolean {
-  return !!cleanEnvVar(process.env.ADMIN_SESSION_SECRET);
+  const role = session.role as string;
+  if (!role || !allowedRoles.includes(role)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403 }
+    );
+  }
+  return null;
 }
 
 export async function hashPassword(plain: string): Promise<string> {

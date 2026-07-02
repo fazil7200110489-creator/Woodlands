@@ -121,3 +121,17 @@ const reviewSchema = new Schema(
 );
 
 export const ReviewModel = models.Review || model("Review", reviewSchema);
+
+const userSchema = new Schema(
+  {
+    username: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true },
+    passwordHash: { type: String, required: true },
+    role: { type: String, enum: ["admin", "manager", "staff"], default: "staff" },
+    isActive: { type: Boolean, default: true },
+    lastLogin: { type: Date },
+  },
+  { timestamps: true }
+);
+
+export const UserModel = models.User || model("User", userSchema);

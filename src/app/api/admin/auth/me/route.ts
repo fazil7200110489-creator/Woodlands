@@ -6,5 +6,13 @@ export async function GET(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
-  return NextResponse.json({ authenticated: true });
+  return NextResponse.json({
+    authenticated: true,
+    user: {
+      id: session.sub,
+      username: session.username,
+      email: session.email,
+      role: session.role,
+    },
+  });
 }

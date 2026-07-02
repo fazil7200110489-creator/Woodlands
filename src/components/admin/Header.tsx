@@ -1,8 +1,13 @@
-"use client";
-
 import { Bell, Menu, Search, User } from "lucide-react";
+import Link from "next/link";
 
-export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
+export default function Header({ 
+  onMenuClick, 
+  user 
+}: { 
+  onMenuClick: () => void; 
+  user?: { username: string; role: string } 
+}) {
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between bg-white px-4 shadow-sm md:px-6">
       <div className="flex items-center">
@@ -31,12 +36,15 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
           <span className="absolute right-1.5 top-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
         </button>
         
-        <div className="flex items-center gap-3 border-l pl-4">
+        <Link href="/admin/profile" className="flex items-center gap-3 border-l pl-4 hover:opacity-85 transition-opacity">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#BF976A] text-white">
             <User size={16} />
           </div>
-          <span className="hidden text-sm font-medium text-gray-700 md:block">Admin</span>
-        </div>
+          <div className="hidden md:flex flex-col text-left">
+            <span className="text-xs font-semibold text-gray-900">{user?.username || "Admin"}</span>
+            <span className="text-[10px] text-gray-400 capitalize">{user?.role || "Staff"}</span>
+          </div>
+        </Link>
       </div>
     </header>
   );
