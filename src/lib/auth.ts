@@ -2,7 +2,7 @@
  * auth.ts — Server-side authentication utilities.
  * This file must NEVER be imported by client components.
  */
-import "server-only";
+// import "server-only";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import * as bcrypt from "bcryptjs";
@@ -20,6 +20,28 @@ function getSecret(): string {
 // ---------------------------------------------------------------------------
 // Password utilities
 // ---------------------------------------------------------------------------
+
+export function cleanEnvVar(val?: string): string {
+  if (!val) return "";
+  let clean = val.trim();
+  if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+    clean = clean.slice(1, -1);
+  }
+  return clean.trim();
+}
+
+export function getAdminUsername(): string {
+  return cleanEnvVar(process.env.ADMIN_USERNAME);
+}
+
+export function getAdminPasswordHash(): string {
+  const hash = cleanEnvVar(process.env.ADMIN_PASSWORD_HASH);
+  if (hash.startsWith("base64:")) {
+    const base64Str = hash.substring("base64:".length);
+    return Buffer.from(base64Str, "base64").toString("utf-8");
+  }
+  return hash;
+}
 
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 12);

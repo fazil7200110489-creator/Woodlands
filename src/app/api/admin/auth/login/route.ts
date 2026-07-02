@@ -3,6 +3,8 @@ import {
   verifyPassword,
   createSessionToken,
   getSessionCookieOptions,
+  getAdminUsername,
+  getAdminPasswordHash,
 } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -16,22 +18,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const adminUsername = process.env.ADMIN_USERNAME;
-    const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+    const adminUsername = getAdminUsername();
+    const adminPasswordHash = getAdminPasswordHash();
 
-    // if (!adminUsername || !adminPasswordHash) {
-    //   console.error("[login] ADMIN_USERNAME or ADMIN_PASSWORD_HASH not set");
-    //   return NextResponse.json(
-    //     { error: "Server configuration error." },
-    //     { status: 500 }
-    //   );
-    // }
-    if (!adminPasswordHash) {
+    if (!adminUsername || !adminPasswordHash) {
+      console.error("[login] ADMIN_USERNAME or ADMIN_PASSWORD_HASH not set");
       return NextResponse.json(
-        { error: "ADMIN_PASSWORD_HASH is missing" },
+        { error: "Server configuration error." },
         { status: 500 }
       );
     }
+
     // Validate username (case-sensitive)
     if (username !== adminUsername) {
       // Use the same delay as bcrypt to prevent username enumeration
@@ -44,6 +41,7 @@ export async function POST(req: Request) {
 
     // Validate password with bcrypt
     const passwordValid = await verifyPassword(password, adminPasswordHash);
+
     if (!passwordValid) {
       return NextResponse.json(
         { error: "Invalid username or password." },
