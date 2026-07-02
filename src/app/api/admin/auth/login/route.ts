@@ -31,7 +31,15 @@ export async function POST(req: Request) {
 
     // STEP 2: Verify login request
     console.log(`Username received: ${username}`);
-    const usernameMatches = username === adminUsername;
+    
+    // Normalize both inputs (trim whitespace and convert to lowercase for case-insensitivity)
+    const normalizedEntered = username.trim().toLowerCase();
+    const normalizedStored = adminUsername.trim().toLowerCase();
+    const usernameMatches = normalizedEntered === normalizedStored;
+    
+    console.log(`Entered Username (Normalized): ${normalizedEntered}`);
+    console.log(`Stored Username (Normalized): ${normalizedStored}`);
+    console.log(`Entered Length: ${username.length}, Stored Length: ${adminUsername.length}`);
     console.log(`Whether username matches ADMIN_USERNAME: ${usernameMatches}`);
 
     if (!adminUsername || !adminPasswordHash) {
@@ -42,7 +50,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validate username (case-sensitive)
+    // Validate username (case-insensitive & trimmed)
     if (!usernameMatches) {
       // Use the same delay as bcrypt to prevent username enumeration
       await new Promise((r) => setTimeout(r, 300));
