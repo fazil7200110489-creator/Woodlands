@@ -6,6 +6,7 @@ import {
   getAdminUsername,
   getAdminPasswordHash,
   hasAdminSessionSecret,
+  getAdminPasswordHashDiagnostics,
 } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -23,11 +24,15 @@ export async function POST(req: Request) {
     const adminUsername = getAdminUsername();
     const adminPasswordHash = getAdminPasswordHash();
     const adminSessionSecretLoaded = hasAdminSessionSecret();
+    const diagnostics = getAdminPasswordHashDiagnostics();
 
     console.log("Environment Loaded");
     console.log(`ADMIN_USERNAME Loaded: ${!!adminUsername}`);
     console.log(`ADMIN_PASSWORD_HASH Loaded: ${!!adminPasswordHash}`);
     console.log(`ADMIN_SESSION_SECRET Loaded: ${adminSessionSecretLoaded}`);
+    console.log(`Diagnostics - Raw Env Hash SHA-256: ${diagnostics.rawSha256}`);
+    console.log(`Diagnostics - Decoded Hash SHA-256: ${diagnostics.decodedSha256}`);
+    console.log(`Diagnostics - Raw Length: ${diagnostics.rawLength}, Decoded Length: ${diagnostics.decodedLength}`);
 
     // STEP 2: Verify login request
     console.log(`Username received: ${username}`);

@@ -38,6 +38,22 @@ export function getAdminPasswordHash(): string {
   return hash;
 }
 
+export function getAdminPasswordHashDiagnostics(): {
+  rawSha256: string;
+  decodedSha256: string;
+  rawLength: number;
+  decodedLength: number;
+} {
+  const raw = process.env.ADMIN_PASSWORD_HASH || "";
+  const decoded = getAdminPasswordHash();
+  return {
+    rawSha256: SHA256(raw),
+    decodedSha256: SHA256(decoded),
+    rawLength: raw.length,
+    decodedLength: decoded.length,
+  };
+}
+
 export function hasAdminSessionSecret(): boolean {
   return !!cleanEnvVar(process.env.ADMIN_SESSION_SECRET);
 }
