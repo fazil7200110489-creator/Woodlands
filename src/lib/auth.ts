@@ -12,7 +12,7 @@ export const SESSION_COOKIE_NAME = "admin_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 function getSecret(): string {
-  const secret = process.env.ADMIN_SESSION_SECRET;
+  const secret = cleanEnvVar(process.env.ADMIN_SESSION_SECRET);
   if (!secret) throw new Error("ADMIN_SESSION_SECRET is not set");
   return secret;
 }
@@ -41,6 +41,10 @@ export function getAdminPasswordHash(): string {
     return Buffer.from(base64Str, "base64").toString("utf-8");
   }
   return hash;
+}
+
+export function hasAdminSessionSecret(): boolean {
+  return !!cleanEnvVar(process.env.ADMIN_SESSION_SECRET);
 }
 
 export async function hashPassword(plain: string): Promise<string> {

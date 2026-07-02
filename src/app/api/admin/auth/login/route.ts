@@ -5,6 +5,7 @@ import {
   getSessionCookieOptions,
   getAdminUsername,
   getAdminPasswordHash,
+  hasAdminSessionSecret,
 } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -18,8 +19,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // STEP 1 & STEP 7: Environment Loaded check
     const adminUsername = getAdminUsername();
     const adminPasswordHash = getAdminPasswordHash();
+    const adminSessionSecretLoaded = hasAdminSessionSecret();
+
+    console.log("Environment Loaded");
+    console.log(`ADMIN_USERNAME Loaded: ${!!adminUsername}`);
+    console.log(`ADMIN_PASSWORD_HASH Loaded: ${!!adminPasswordHash}`);
+    console.log(`ADMIN_SESSION_SECRET Loaded: ${adminSessionSecretLoaded}`);
+
+    // STEP 2: Verify login request
+    console.log(`Username received: ${username}`);
+    const usernameMatches = username === adminUsername;
+    console.log(`Whether username matches ADMIN_USERNAME: ${usernameMatches}`);
 
     if (!adminUsername || !adminPasswordHash) {
       console.error("[login] ADMIN_USERNAME or ADMIN_PASSWORD_HASH not set");
@@ -30,7 +43,7 @@ export async function POST(req: Request) {
     }
 
     // Validate username (case-sensitive)
-    if (username !== adminUsername) {
+    if (!usernameMatches) {
       // Use the same delay as bcrypt to prevent username enumeration
       await new Promise((r) => setTimeout(r, 300));
       return NextResponse.json(
@@ -38,9 +51,12 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+    console.log("Username Match");
 
-    // Validate password with bcrypt
+    // STEP 3: Verify Password Hash
+    console.log("Checking verifyPassword()...");
     const passwordValid = await verifyPassword(password, adminPasswordHash);
+    console.log(`Password Compare Result:\n${passwordValid}`);
 
     if (!passwordValid) {
       return NextResponse.json(
@@ -48,15 +64,25 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+    console.log("Password Match");
 
-    // Create signed session token
+    // STEP 5: Verify Session
+    console.log("Creating session token...");
     const token = createSessionToken({
       sub: "admin",
       exp: Date.now() + 1000 * 60 * 60 * 24 * 7, // 7 days
     });
+    console.log(`createSessionToken() works correctly: ${!!token}`);
 
     const response = NextResponse.json({ ok: true });
     const cookieOpts = getSessionCookieOptions();
+    console.log(`HttpOnly cookie: ${!!cookieOpts.httpOnly}`);
+    console.log(`Secure cookie: ${!!cookieOpts.secure}`);
+    console.log(`SameSite: ${cookieOpts.sameSite}`);
+    console.log(`Cookie path: ${cookieOpts.path}`);
+    console.log(`Cookie expiry: ${cookieOpts.maxAge} seconds`);
+    console.log("Session Created");
+
     response.cookies.set({
       name: cookieOpts.name,
       value: token,
@@ -66,6 +92,8 @@ export async function POST(req: Request) {
       path: cookieOpts.path,
       maxAge: cookieOpts.maxAge,
     });
+    console.log("Cookie Set");
+    console.log("Redirect");
 
     return response;
   } catch (err) {
