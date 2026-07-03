@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { toCurrency } from "@/lib/pickup";
 import {
-  Bell,
   Clock,
   CheckCircle2,
   XCircle,
@@ -11,12 +10,13 @@ import {
   Package,
   AlertTriangle,
   Search,
-  RefreshCw,
   Phone,
   Banknote,
   ShoppingBag,
 } from "lucide-react";
 import { Order, OrderStatus } from "@/lib/types";
+import { usePOS } from "@/components/admin/OrderNotificationContext";
+import { AnimatePresence, m, LazyMotion, domAnimation } from "framer-motion";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -84,53 +84,9 @@ const STATUS_CONFIG: Record<
   },
 };
 
-// ── Notification types ─────────────────────────────────────────────────────
-
-type Notification = {
-  id: string;
-  type: "new_order" | "pickup_reminder" | "overdue";
-  title: string;
-  body: string;
-  orderId: string;
-  timestamp: Date;
-  read: boolean;
-};
-
-// ── Sound helper ───────────────────────────────────────────────────────────
-
-function playNotificationSound(type: "order" | "reminder" | "overdue" = "order") {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const notes =
-      type === "order"
-        ? [523, 659, 784, 1047] // C5 E5 G5 C6 — cheerful ascending
-        : type === "reminder"
-        ? [784, 659, 784] // G5 E5 G5 — gentle reminder
-        : [200, 150]; // low descending — overdue alert
-
-    let t = ctx.currentTime;
-    notes.forEach((freq) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = freq;
-      osc.type = "sine";
-      gain.gain.setValueAtTime(0.18, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-      osc.start(t);
-      osc.stop(t + 0.25);
-      t += 0.16;
-    });
-  } catch {
-    // AudioContext not available (headless/test env) — silently ignore
-  }
-}
-
-// ── Overdue helpers ────────────────────────────────────────────────────────
+// ── Overdue Helpers ────────────────────────────────────────────────────────
 
 function parsePickupTime(pickupTime: string): Date | null {
-  // pickupTime is like "7:30 PM" — assume today
   try {
     const now = new Date();
     const [timePart, meridiem] = pickupTime.trim().split(" ");
@@ -157,165 +113,18 @@ function minutesPastPickup(pickupTime: string): number {
   return -minutesUntilPickup(pickupTime);
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { orders, updateOrderStatus, isLoading } = usePOS();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("Active");
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Track which orders we've already reminded/alerted so we don't spam
-  const remindedRef = useRef<Set<string>>(new Set());
-  const overdueRef = useRef<Set<string>>(new Set());
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  // ── Load orders ────────────────────────────────────────────────────────
-
-  const loadOrders = useCallback(async () => {
-    try {
-      const res = await fetch("/api/orders");
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
-
-  // ── SSE connection ─────────────────────────────────────────────────────
-
-  useEffect(() => {
-    let es: EventSource;
-    let retryTimeout: ReturnType<typeof setTimeout>;
-
-    const connect = () => {
-      es = new EventSource("/api/orders/events");
-
-      es.addEventListener("new_order", (e) => {
-        const order = JSON.parse(e.data) as Order;
-        setOrders((prev) => {
-          // Avoid duplicate if we already have this order (e.g. from initial load)
-          if (prev.some((o) => o._id === order._id)) return prev;
-          return [order, ...prev];
-        });
-
-        const notif: Notification = {
-          id: `new_${order._id}_${Date.now()}`,
-          type: "new_order",
-          title: "🔔 New Order Received",
-          body: `${order.customerName} · ${order.pickupTime} · ${toCurrency(order.totalAmount)}`,
-          orderId: order._id,
-          timestamp: new Date(),
-          read: false,
-        };
-        setNotifications((prev) => [notif, ...prev].slice(0, 30));
-        playNotificationSound("order");
-      });
-
-      es.addEventListener("status_change", (e) => {
-        const { _id, status } = JSON.parse(e.data);
-        setOrders((prev) =>
-          prev.map((o) => (o._id === _id ? { ...o, status } : o))
-        );
-      });
-
-      es.onerror = () => {
-        es.close();
-        // Reconnect after 5s
-        retryTimeout = setTimeout(connect, 5000);
-      };
-    };
-
-    connect();
-
-    return () => {
-      es?.close();
-      clearTimeout(retryTimeout);
-    };
-  }, []);
-
-  // ── Pickup reminder & overdue monitor (runs every 30s) ────────────────
-
-  useEffect(() => {
-    const check = () => {
-      const active = orders.filter(
-        (o) => o.status !== "Completed" && o.status !== "Cancelled"
-      );
-
-      active.forEach((o) => {
-        const mins = minutesUntilPickup(o.pickupTime);
-
-        // 15-minute pickup reminder
-        if (mins <= 15 && mins > -5 && !remindedRef.current.has(o._id)) {
-          remindedRef.current.add(o._id);
-          const notif: Notification = {
-            id: `reminder_${o._id}_${Date.now()}`,
-            type: "pickup_reminder",
-            title: "🔔 Pickup Reminder",
-            body: `${o.customerName} · Pickup: ${o.pickupTime} · Order ready now!`,
-            orderId: o._id,
-            timestamp: new Date(),
-            read: false,
-          };
-          setNotifications((prev) => [notif, ...prev].slice(0, 30));
-          playNotificationSound("reminder");
-        }
-
-        // Overdue — pickup time has passed
-        const pastMins = minutesPastPickup(o.pickupTime);
-        if (pastMins > 2 && !overdueRef.current.has(o._id)) {
-          overdueRef.current.add(o._id);
-          const notif: Notification = {
-            id: `overdue_${o._id}_${Date.now()}`,
-            type: "overdue",
-            title: "⚠ Late Pickup",
-            body: `${o.customerName} · Pickup: ${o.pickupTime} · ${pastMins} min elapsed`,
-            orderId: o._id,
-            timestamp: new Date(),
-            read: false,
-          };
-          setNotifications((prev) => [notif, ...prev].slice(0, 30));
-          playNotificationSound("overdue");
-        }
-      });
-    };
-
-    check(); // run immediately when orders change
-    const interval = setInterval(check, 30_000);
-    return () => clearInterval(interval);
-  }, [orders]);
-
-  // ── Status update ──────────────────────────────────────────────────────
 
   const handleStatusUpdate = async (id: string, newStatus: OrderStatus) => {
     setUpdatingId(id);
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: newStatus }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setOrders((prev) => prev.map((o) => (o._id === id ? updated : o)));
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setUpdatingId(null);
-    }
+    await updateOrderStatus(id, newStatus);
+    setUpdatingId(null);
   };
 
   // ── Filters ────────────────────────────────────────────────────────────
@@ -336,8 +145,6 @@ export default function OrdersPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // ── Render ─────────────────────────────────────────────────────────────
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -350,78 +157,6 @@ export default function OrdersPage() {
             {orders.filter((o) => !["Completed", "Cancelled"].includes(o.status)).length} active ·{" "}
             {orders.filter((o) => o.status === "Pending").length} pending
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Refresh */}
-          <button
-            onClick={() => { setIsLoading(true); loadOrders(); }}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 transition-colors"
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-
-          {/* Notification Bell */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setNotifPanelOpen((v) => !v);
-                if (!notifPanelOpen) {
-                  setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-                }
-              }}
-              className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
-            >
-              <Bell
-                size={18}
-                className={unreadCount > 0 ? "text-[#BF976A] animate-[bell-shake_0.5s_ease-in-out]" : "text-gray-500"}
-              />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* Notification Panel */}
-            {notifPanelOpen && (
-              <div className="absolute right-0 top-12 z-50 w-96 rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-                  <span className="text-sm font-semibold text-gray-800">Notifications</span>
-                  <button
-                    onClick={() => setNotifications([])}
-                    className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    Clear all
-                  </button>
-                </div>
-                <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                  {notifications.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-8">No notifications yet.</p>
-                  ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={`px-4 py-3 ${
-                          n.type === "overdue"
-                            ? "bg-red-50"
-                            : n.type === "pickup_reminder"
-                            ? "bg-amber-50"
-                            : "bg-white"
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-gray-900">{n.title}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{n.body}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {n.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -474,26 +209,44 @@ export default function OrdersPage() {
           <p className="text-gray-500">No orders found.</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredOrders.map((order) => (
-            <OrderCard
-              key={order._id}
-              order={order}
-              isUpdating={updatingId === order._id}
-              onStatusUpdate={handleStatusUpdate}
-            />
-          ))}
-        </div>
+        <LazyMotion features={domAnimation}>
+          <m.div layout className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <AnimatePresence mode="popLayout">
+              {filteredOrders.map((order) => (
+                <m.div
+                  key={order._id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <OrderCard
+                    order={order}
+                    isUpdating={updatingId === order._id}
+                    onStatusUpdate={handleStatusUpdate}
+                  />
+                </m.div>
+              ))}
+            </AnimatePresence>
+          </m.div>
+        </LazyMotion>
       )}
 
-      {/* Bell shake keyframe injected as a style tag */}
+      {/* Styles for new order highlight & swing chimes */}
       <style jsx global>{`
-        @keyframes bell-shake {
-          0%, 100% { transform: rotate(0deg); }
-          20% { transform: rotate(-15deg); }
-          40% { transform: rotate(15deg); }
-          60% { transform: rotate(-10deg); }
-          80% { transform: rotate(10deg); }
+        @keyframes new-order-pulse {
+          0%, 100% { 
+            border-color: #BF976A; 
+            box-shadow: 0 0 0 0px rgba(191, 151, 106, 0.4); 
+          }
+          50% { 
+            border-color: #dcb38a; 
+            box-shadow: 0 0 0 6px rgba(191, 151, 106, 0.15); 
+          }
+        }
+        .animate-new-order-pulse {
+          animation: new-order-pulse 2s infinite;
         }
       `}</style>
     </div>
@@ -515,129 +268,140 @@ function OrderCard({
   const nextStatus = STATUS_NEXT[order.status];
   const pastMins = minutesPastPickup(order.pickupTime);
   const minsUntil = minutesUntilPickup(order.pickupTime);
+  
   const isOverdue =
     pastMins > 2 &&
     order.status !== "Completed" &&
     order.status !== "Cancelled";
+  
   const isPickupSoon =
     minsUntil <= 15 &&
     minsUntil > -2 &&
     order.status !== "Completed" &&
     order.status !== "Cancelled";
 
+  // Check if order was placed very recently (last 15 seconds) to highlight
+  const isNew = Date.now() - new Date(order.createdAt).getTime() < 15000;
+
   const orderNum = order._id.slice(-6).toUpperCase();
 
   return (
     <div
-      className={`relative rounded-2xl border bg-white p-5 shadow-sm transition-all ${
-        isOverdue
+      className={`relative rounded-2xl border bg-white p-5 shadow-sm transition-all h-full flex flex-col justify-between ${
+        isNew 
+          ? "animate-new-order-pulse border-2"
+          : isOverdue
           ? "border-red-300 ring-1 ring-red-200 bg-red-50/30"
           : isPickupSoon
           ? "border-amber-300 ring-1 ring-amber-200 bg-amber-50/20"
           : "border-gray-100 hover:shadow-md"
       }`}
     >
-      {/* Overdue / Pickup Soon banner */}
-      {isOverdue && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700">
-          <AlertTriangle size={12} />⚠ Late Pickup · {pastMins} min elapsed
-        </div>
-      )}
-      {isPickupSoon && !isOverdue && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700">
-          <Clock size={12} />🔔 Pickup in {minsUntil} min — prepare now!
-        </div>
-      )}
+      <div>
+        {/* Overdue / Pickup Soon banner */}
+        {isOverdue && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700">
+            <AlertTriangle size={12} />⚠️ Late Pickup · {pastMins} min elapsed
+          </div>
+        )}
+        {isPickupSoon && !isOverdue && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700">
+            <Clock size={12} />🔔 Pickup in {minsUntil} min — prepare now!
+          </div>
+        )}
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <p className="text-xs font-mono text-gray-400 mb-0.5">#{orderNum}</p>
-          <p className="font-semibold text-gray-900 text-base">{order.customerName}</p>
-          <a
-            href={`tel:${order.customerPhone}`}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-[#BF976A] transition-colors mt-0.5"
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <p className="text-xs font-mono text-gray-400 mb-0.5">#{orderNum}</p>
+            <p className="font-semibold text-gray-900 text-base">{order.customerName}</p>
+            <a
+              href={`tel:${order.customerPhone}`}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-[#BF976A] transition-colors mt-0.5"
+            >
+              <Phone size={11} /> {order.customerPhone}
+            </a>
+          </div>
+
+          {/* Status badge */}
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${cfg.bg} ${cfg.color} ${cfg.ring}`}
           >
-            <Phone size={11} /> {order.customerPhone}
-          </a>
-        </div>
-
-        {/* Status badge */}
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${cfg.bg} ${cfg.color} ${cfg.ring}`}
-        >
-          {cfg.icon} {cfg.label}
-        </span>
-      </div>
-
-      {/* Items */}
-      <ul className="mb-4 space-y-1">
-        {order.items?.map((item, idx) => (
-          <li key={idx} className="flex justify-between text-sm">
-            <span className="text-gray-700">
-              {item.qty}× {item.name}
-            </span>
-            <span className="text-gray-500">{toCurrency(item.price * item.qty)}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* Footer info */}
-      <div className="flex items-center justify-between border-t border-gray-100 pt-3 mb-4">
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <Clock size={12} /> {order.pickupTime}
-        </div>
-        <div className="flex items-center gap-1 text-xs font-semibold text-gray-800">
-          <Banknote size={12} className="text-emerald-500" />
-          {toCurrency(order.totalAmount)}
-          <span className="ml-1 rounded-full bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] ring-1 ring-inset ring-emerald-600/20">
-            {order.paymentStatus}
+            {cfg.icon} {cfg.label}
           </span>
         </div>
+
+        {/* Items */}
+        <ul className="mb-4 space-y-1.5">
+          {order.items?.map((item, idx) => (
+            <li key={idx} className="flex justify-between text-sm">
+              <span className="text-gray-700">
+                {item.qty}× {item.name}
+              </span>
+              <span className="text-gray-500">{toCurrency(item.price * item.qty)}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2">
-        {/* Primary next-status action */}
-        {nextStatus && (
-          <button
-            disabled={isUpdating}
-            onClick={() => onStatusUpdate(order._id, nextStatus)}
-            className="flex-1 rounded-xl bg-[#1D0F07] py-2.5 text-xs font-semibold text-white transition-all hover:bg-[#BF976A] disabled:opacity-50"
-          >
-            {isUpdating ? "…" : `→ ${nextStatus}`}
-          </button>
-        )}
-
-        {/* Cancel button — only for non-terminal orders */}
-        {order.status !== "Completed" && order.status !== "Cancelled" && (
-          <button
-            disabled={isUpdating}
-            onClick={() => onStatusUpdate(order._id, "Cancelled")}
-            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        )}
-
-        {/* Completed badge — no action needed */}
-        {order.status === "Completed" && (
-          <div className="flex-1 rounded-xl bg-gray-50 py-2.5 text-center text-xs font-semibold text-gray-400">
-            ✓ Order Complete
+      <div>
+        {/* Footer info */}
+        <div className="flex items-center justify-between border-t border-gray-100 pt-3 mb-4">
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <Clock size={12} /> Pickup: <strong className="text-gray-700 font-semibold">{order.pickupTime}</strong>
           </div>
-        )}
-
-        {order.status === "Cancelled" && (
-          <div className="flex-1 rounded-xl bg-red-50 py-2.5 text-center text-xs font-semibold text-red-400">
-            ✕ Cancelled
+          <div className="flex items-center gap-1 text-xs font-semibold text-gray-800">
+            <Banknote size={12} className="text-emerald-500" />
+            {toCurrency(order.totalAmount)}
+            <span className="ml-1 rounded-full bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] ring-1 ring-inset ring-emerald-600/20 font-semibold">
+              {order.paymentStatus}
+            </span>
           </div>
-        )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-2">
+          {/* Primary next-status action */}
+          {nextStatus && (
+            <button
+              disabled={isUpdating}
+              onClick={() => onStatusUpdate(order._id, nextStatus)}
+              className="flex-1 rounded-xl bg-[#1D0F07] py-2.5 text-xs font-semibold text-white transition-all hover:bg-[#BF976A] disabled:opacity-50"
+            >
+              {isUpdating ? "…" : `→ ${nextStatus}`}
+            </button>
+          )}
+
+          {/* Cancel button — only for non-terminal orders */}
+          {order.status !== "Completed" && order.status !== "Cancelled" && (
+            <button
+              disabled={isUpdating}
+              onClick={() => onStatusUpdate(order._id, "Cancelled")}
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          )}
+
+          {/* Completed badge — no action needed */}
+          {order.status === "Completed" && (
+            <div className="flex-1 rounded-xl bg-gray-50 py-2.5 text-center text-xs font-semibold text-gray-400">
+              ✓ Order Complete
+            </div>
+          )}
+
+          {order.status === "Cancelled" && (
+            <div className="flex-1 rounded-xl bg-red-50 py-2.5 text-center text-xs font-semibold text-red-400">
+              ✕ Cancelled
+            </div>
+          )}
+        </div>
+
+        {/* Time placed */}
+        <p className="mt-2 text-[10px] text-gray-400 text-right">
+          Placed {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </p>
       </div>
-
-      {/* Time placed */}
-      <p className="mt-2 text-[10px] text-gray-400 text-right">
-        Placed {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-      </p>
     </div>
   );
 }

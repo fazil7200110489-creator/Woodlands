@@ -15,7 +15,8 @@ import {
   X,
   Calendar,
   User,
-  Shield
+  Shield,
+  ChefHat
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -24,12 +25,14 @@ const NAV_ITEMS = [
   { name: "Menu Management", href: "/admin/menu", icon: UtensilsCrossed },
   { name: "Categories", href: "/admin/categories", icon: Tags },
   { name: "Orders", href: "/admin/orders", icon: ShoppingBag },
+  { name: "Kitchen Display", href: "/admin/kitchen", icon: ChefHat },
   { name: "Customers", href: "/admin/customers", icon: Users },
   { name: "Analytics", href: "/admin/analytics", icon: LineChart },
   { name: "Offers", href: "/admin/offers", icon: TicketPercent },
   { name: "Reviews", href: "/admin/reviews", icon: Star },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
+
 
 export default function Sidebar({ 
   isOpen, 
