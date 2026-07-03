@@ -6,6 +6,7 @@ import { categories } from "@/lib/menuData";
 import { Plus, Edit2, Trash2, Search } from "lucide-react";
 import Image from "next/image";
 import { toCurrency } from "@/lib/pickup";
+import { resolveFoodImage } from "@/components/MenuImage";
 
 export default function MenuManagementPage() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -88,7 +89,7 @@ export default function MenuManagementPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
                       <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
-                        {m.image ? <Image src={m.image} alt={m.name} fill className="object-cover" /> : <div className="h-full w-full bg-gray-200" />}
+                        {m.image ? <Image src={resolveFoodImage(m.name, m.category, m.image).url} alt={m.name} fill className="object-cover" /> : <div className="h-full w-full bg-gray-200" />}
                       </div>
                       <input 
                         defaultValue={m.name} 
