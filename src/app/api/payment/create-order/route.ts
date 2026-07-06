@@ -6,27 +6,15 @@ export async function POST(req: Request) {
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
+    console.log(`Razorpay Key Loaded: ${!!keyId}`);
+    console.log(`Razorpay Secret Loaded: ${!!keySecret}`);
+
     if (!keyId || !keySecret) {
       console.error("[POST /api/payment/create-order] Missing Razorpay credentials");
+      console.log("Exact Error Message: Razorpay credentials are not configured on the server");
       return NextResponse.json(
         { error: "Razorpay credentials are not configured" },
-        { status: 401 }
-      );
-    }
-
-    const { amount, currency = "INR", notes } = await req.json();
-
-    if (amount === undefined || amount === null) {
-      return NextResponse.json({ error: "Amount is required" }, { status: 400 });
-    }
-
-    // Razorpay expects amount in paise (1 INR = 100 paise)
-    const amountInPaise = Math.round(amount * 100);
-
-    if (amountInPaise < 100) {
-      return NextResponse.json(
-        { error: "Amount must be at least 100 paise" },
-        { status: 400 }
+        { status: 500 }
       );
     }
 
@@ -34,13 +22,60 @@ export async function POST(req: Request) {
       key_id: keyId,
       key_secret: keySecret,
     });
+    const clientCreated = !!razorpay;
+    console.log(`Razorpay Client Created: ${clientCreated}`);
 
-    const order = await razorpay.orders.create({
-      amount: amountInPaise,
-      currency,
-      receipt: `rcpt_${Date.now()}`,
-      notes: notes ?? {},
-    });
+    if (!clientCreated) {
+      return NextResponse.json(
+        { error: "Failed to initialize Razorpay client" },
+        { status: 500 }
+      );
+    }
+
+    const body = await req.json();
+    const { amount, currency = "INR", notes } = body;
+
+    if (amount === undefined || amount === null) {
+      console.log("Exact Error Message: Amount is required");
+      return NextResponse.json({ error: "Amount is required" }, { status: 400 });
+    }
+
+    const amountInPaise = Math.round(amount * 100);
+
+    if (amountInPaise < 100) {
+      console.log(`Exact Error Message: Amount must be at least 100 paise (received ${amountInPaise} paise)`);
+      return NextResponse.json(
+        { error: "Amount must be at least 100 paise" },
+        { status: 400 }
+      );
+    }
+
+    const receipt = `rcpt_${Date.now()}`;
+    const customerName = notes?.customerName || "N/A";
+
+    console.log("Order Creation Started");
+    console.log("Amount:", amountInPaise);
+    console.log("Currency:", currency);
+    console.log("Receipt:", receipt);
+    console.log("Customer Name:", customerName);
+
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount: amountInPaise,
+        currency,
+        receipt,
+        notes: notes ?? {},
+      });
+      console.log("Razorpay API Response:", JSON.stringify(order));
+    } catch (apiErr: any) {
+      console.error("Razorpay orders.create API threw an exception:");
+      console.log("Status Code:", apiErr?.statusCode || apiErr?.status || "N/A");
+      console.log("Error Code:", apiErr?.error?.code || "N/A");
+      console.log("Error Description:", apiErr?.error?.description || "N/A");
+      console.log("Exact Exception:", apiErr?.message || apiErr || "N/A");
+      throw apiErr;
+    }
 
     return NextResponse.json({
       orderId: order.id,
@@ -50,9 +85,9 @@ export async function POST(req: Request) {
       keyId: keyId,
     });
   } catch (err: any) {
-    console.error("[POST /api/payment/create-order] Error details:", err);
+    console.error("[POST /api/payment/create-order] Exception caught:", err);
 
-    // Detect authentication/credential failure
+    // Detect authentication/credential failure from Razorpay API
     const isAuthFailure = 
       err?.statusCode === 401 || 
       err?.status === 401 ||
@@ -62,8 +97,8 @@ export async function POST(req: Request) {
 
     if (isAuthFailure) {
       return NextResponse.json(
-        { error: "Authentication failed with payment gateway" },
-        { status: 401 }
+        { error: "Authentication failed with Razorpay" },
+        { status: 502 } // Upstream authentication error (502 Bad Gateway)
       );
     }
 
