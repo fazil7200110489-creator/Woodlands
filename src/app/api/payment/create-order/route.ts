@@ -6,12 +6,8 @@ export async function POST(req: Request) {
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    console.log(`Razorpay Key Loaded: ${!!keyId}`);
-    console.log(`Razorpay Secret Loaded: ${!!keySecret}`);
-
     if (!keyId || !keySecret) {
-      console.error("[POST /api/payment/create-order] Missing Razorpay credentials");
-      console.log("Exact Error Message: Razorpay credentials are not configured on the server");
+      console.error("[POST /api/payment/create-order] Missing Razorpay credentials in environment variables.");
       return NextResponse.json(
         { error: "Razorpay credentials are not configured" },
         { status: 500 }
@@ -22,10 +18,8 @@ export async function POST(req: Request) {
       key_id: keyId,
       key_secret: keySecret,
     });
-    const clientCreated = !!razorpay;
-    console.log(`Razorpay Client Created: ${clientCreated}`);
 
-    if (!clientCreated) {
+    if (!razorpay) {
       return NextResponse.json(
         { error: "Failed to initialize Razorpay client" },
         { status: 500 }
@@ -36,14 +30,12 @@ export async function POST(req: Request) {
     const { amount, currency = "INR", notes } = body;
 
     if (amount === undefined || amount === null) {
-      console.log("Exact Error Message: Amount is required");
       return NextResponse.json({ error: "Amount is required" }, { status: 400 });
     }
 
     const amountInPaise = Math.round(amount * 100);
 
     if (amountInPaise < 100) {
-      console.log(`Exact Error Message: Amount must be at least 100 paise (received ${amountInPaise} paise)`);
       return NextResponse.json(
         { error: "Amount must be at least 100 paise" },
         { status: 400 }
@@ -51,31 +43,13 @@ export async function POST(req: Request) {
     }
 
     const receipt = `rcpt_${Date.now()}`;
-    const customerName = notes?.customerName || "N/A";
 
-    console.log("Order Creation Started");
-    console.log("Amount:", amountInPaise);
-    console.log("Currency:", currency);
-    console.log("Receipt:", receipt);
-    console.log("Customer Name:", customerName);
-
-    let order;
-    try {
-      order = await razorpay.orders.create({
-        amount: amountInPaise,
-        currency,
-        receipt,
-        notes: notes ?? {},
-      });
-      console.log("Razorpay API Response:", JSON.stringify(order));
-    } catch (apiErr: any) {
-      console.error("Razorpay orders.create API threw an exception:");
-      console.log("Status Code:", apiErr?.statusCode || apiErr?.status || "N/A");
-      console.log("Error Code:", apiErr?.error?.code || "N/A");
-      console.log("Error Description:", apiErr?.error?.description || "N/A");
-      console.log("Exact Exception:", apiErr?.message || apiErr || "N/A");
-      throw apiErr;
-    }
+    const order = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency,
+      receipt,
+      notes: notes ?? {},
+    });
 
     return NextResponse.json({
       orderId: order.id,
@@ -108,4 +82,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
 
