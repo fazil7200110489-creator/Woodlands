@@ -56,6 +56,7 @@ export async function POST(req: Request) {
       order_id: order.id,
       amount: order.amount,
       currency: order.currency,
+      receipt: order.receipt,
       keyId: keyId,
     });
   } catch (err: any) {
